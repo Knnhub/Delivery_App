@@ -12,14 +12,14 @@ class HomePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // const Spacer(),
-            // const Icon(Icons.local_shipping, size: 80),
-            // const SizedBox(height: 24),
-            // const Text(
-            //   'ยินดีต้อนรับ',
-            //   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            //   textAlign: TextAlign.center,
-            // ),
+            const Spacer(),
+            const Icon(Icons.local_shipping, size: 80),
+            const SizedBox(height: 24),
+            const Text(
+              'ยินดีต้อนรับ',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 8),
             const Text('กรุณาเลือกการดำเนินการ', textAlign: TextAlign.center),
             const Spacer(),

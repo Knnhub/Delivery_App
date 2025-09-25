@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:deliver_app/firebase_options.dart';
 import 'package:deliver_app/pages/firebase.dart';
+import 'package:deliver_app/pages/riderhome.dart';
+import 'package:deliver_app/pages/userhome.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'pages/home.dart';
@@ -32,6 +34,8 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginPage(),
         '/signup': (context) => const RegisterPage(),
         '/firebase': (context) => const FirebasePage(),
+        '/userHome': (ctx) => const UserhomePage(), // หลัง Login เป็น user
+        '/riderHome': (ctx) => const RiderhomePage(), // หลัง Login เป็น rider
       },
     );
   }
