@@ -12,51 +12,168 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final phoneCtl = TextEditingController();
+  final nameCtl = TextEditingController();
   final passwordCtl = TextEditingController();
-  String role = 'user'; // 'user' | 'rider'
-
   final db = FirebaseFirestore.instance;
   bool _loading = false;
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    nameCtl.dispose();
+    passwordCtl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('เข้าสู่ระบบ')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      backgroundColor: const Color(0xFFE5E0FA),
+      body: SafeArea(
+        child: Stack(
           children: [
-            TextField(
-              controller: phoneCtl,
-              decoration: const InputDecoration(labelText: 'Phone Number'),
-              keyboardType: TextInputType.phone,
+            // Back button ฟิกมุมซ้ายบน
+            Positioned(
+              left: 8,
+              top: 8,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: () => Navigator.maybePop(context),
+              ),
             ),
-            TextField(
-              controller: passwordCtl,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            const SizedBox(height: 8),
-            DropdownButton<String>(
-              value: role,
-              items: const [
-                DropdownMenuItem(value: 'user', child: Text('User')),
-                DropdownMenuItem(value: 'rider', child: Text('Rider')),
-              ],
-              onChanged: (v) => setState(() => role = v ?? 'user'),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _loading ? null : login,
-              child: _loading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Login'),
+
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isTall = constraints.maxHeight > 720;
+
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: isTall ? 24 : 12),
+
+                          // Logo / ภาพประกอบ (ขนาดยืดหยุ่น)
+                          // AspectRatio(
+                          //   aspectRatio: 1,
+                          //   child: Container(
+                          //     decoration: BoxDecoration(
+                          //       color: Colors.white,
+                          //       borderRadius: BorderRadius.circular(12),
+                          //     ),
+                          //     // child: ... (ใส่โลโก้/ภาพได้ตามต้องการ)
+                          //   ),
+                          // ),
+                          SizedBox(height: isTall ? 40 : 24),
+
+                          // Username
+                          TextField(
+                            controller: nameCtl,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.username],
+                            decoration: InputDecoration(
+                              hintText: 'ชื่อผู้ใช้',
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 18,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(50),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Password
+                          TextField(
+                            controller: passwordCtl,
+                            obscureText: _obscure,
+                            textInputAction: TextInputAction.done,
+                            autofillHints: const [AutofillHints.password],
+                            onSubmitted: (_) => _loading ? null : login(),
+                            decoration: InputDecoration(
+                              hintText: 'รหัสผ่าน',
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 18,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(50),
+                                borderSide: BorderSide.none,
+                              ),
+                              suffixIcon: IconButton(
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
+                                icon: Icon(
+                                  _obscure
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                ),
+                                color: Colors.black.withOpacity(0.6),
+                              ),
+                            ),
+                          ),
+
+                          SizedBox(height: isTall ? 32 : 20),
+
+                          // Login button
+                          SizedBox(
+                            height: 57,
+                            child: ElevatedButton(
+                              onPressed: _loading ? null : login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF8C78E8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                elevation: 0,
+                                foregroundColor: const Color(0xFFE9D5FF),
+                              ),
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFFE9D5FF),
+                                            ),
+                                      ),
+                                    )
+                                  : const Text(
+                                      'เข้าสู่ระบบ',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+
+                          SizedBox(height: isTall ? 16 : 8),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -72,10 +189,10 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> login() async {
     final messenger = ScaffoldMessenger.of(context);
-    final phone = phoneCtl.text.trim();
+    final name = nameCtl.text.trim();
     final pass = passwordCtl.text;
 
-    if (phone.isEmpty || pass.isEmpty) {
+    if (name.isEmpty || pass.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(content: Text('กรอกข้อมูลให้ครบถ้วน')),
       );
@@ -84,22 +201,49 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
     try {
-      final doc = await db.collection(role).doc(phone).get();
-      if (!doc.exists) {
+      DocumentSnapshot<Map<String, dynamic>>? doc;
+      String? detectedRole;
+
+      final userQuery = await db
+          .collection('user')
+          .where('name', isEqualTo: name)
+          .limit(1)
+          .get();
+      if (userQuery.docs.isNotEmpty) {
+        doc = userQuery.docs.first;
+        detectedRole = 'user';
+      } else {
+        final riderQuery = await db
+            .collection('rider')
+            .where('name', isEqualTo: name)
+            .limit(1)
+            .get();
+        if (riderQuery.docs.isNotEmpty) {
+          doc = riderQuery.docs.first;
+          detectedRole = 'rider';
+        }
+      }
+
+      if (doc == null || !doc.exists) {
         messenger.showSnackBar(const SnackBar(content: Text('ไม่พบบัญชีนี้')));
         return;
       }
-      final data = doc.data() as Map<String, dynamic>;
+
+      final data = doc.data()!;
       final storedHash = (data['passwordHash'] ?? '') as String;
       final inputHash = hashPassword(pass);
 
       if (storedHash == inputHash) {
-        log('Login success as $role: $phone');
+        final roleFromDoc = (data['role'] as String?)?.toLowerCase();
+        final role = (roleFromDoc == 'rider' || detectedRole == 'rider')
+            ? 'rider'
+            : 'user';
+
+        log('Login success as $role: $name');
         messenger.showSnackBar(
           const SnackBar(content: Text('เข้าสู่ระบบสำเร็จ')),
         );
         if (!mounted) return;
-        // เปลี่ยนเส้นทางตามบทบาท (คุณสามารถแก้เป็นหน้าเป้าหมายจริงภายหลังได้)
         final nextRoute = role == 'user' ? '/userHome' : '/riderHome';
         Navigator.pushReplacementNamed(context, nextRoute);
       } else {

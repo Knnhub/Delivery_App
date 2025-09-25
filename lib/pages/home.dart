@@ -6,47 +6,96 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Delivery App')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Spacer(),
-            const Icon(Icons.local_shipping, size: 80),
-            const SizedBox(height: 24),
-            const Text(
-              'ยินดีต้อนรับ',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text('กรุณาเลือกการดำเนินการ', textAlign: TextAlign.center),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pushNamed(context, '/login'),
-                child: const Text('เข้าสู่ระบบ'),
+      backgroundColor: const Color(0xFFE5E0FA), // พื้นหลังสี E5E0FA
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenHeight = constraints.maxHeight;
+          final screenWidth = constraints.maxWidth;
+
+          return Column(
+            children: [
+              SizedBox(height: screenHeight * 0.15),
+
+              // รูป (วางกลางจอ)
+              Center(
+                child: Container(
+                  width: screenWidth * 0.5, // กว้าง 50% ของจอ
+                  height: screenWidth * 0.5,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white, // placeholder background
+                    image: DecorationImage(
+                      image: AssetImage('assets/images/chatgpt_image.png'),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pushNamed(context, '/signup'),
-                child: const Text('สมัครสมาชิก'),
+
+              const Spacer(),
+
+              // ปุ่ม เข้าสู่ระบบ
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.15,
+                  vertical: screenHeight * 0.01,
+                ),
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/login'),
+                  child: Container(
+                    height: 57,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8C78E8),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'เข้าสู่ระบบ',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w400,
+                          fontSize: 24,
+                          color: Color(0xFFE5E0FA),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pushNamed(context, '/firebase'),
-                child: const Text('firebase'),
+
+              // ปุ่ม สมัครสมาชิก
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.15,
+                  vertical: screenHeight * 0.01,
+                ),
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/signup'),
+                  child: Container(
+                    height: 57,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8C78E8),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'สมัครสมาชิก',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w400,
+                          fontSize: 24,
+                          color: Color(0xFFE9D5FF),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
+
+              SizedBox(height: screenHeight * 0.05),
+            ],
+          );
+        },
       ),
     );
   }
