@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart' show sha256;
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:image_picker/image_picker.dart';
@@ -31,7 +32,7 @@ class _RegisterPageState extends State<RegisterPage> {
   // Firestore
   final db = FirebaseFirestore.instance;
 
-  // Storage / Image Picker
+  // Image Picker
   final ImagePicker _picker = ImagePicker();
   XFile? _pickedImage;
   String? _profilePicUrl; // หลังอัพโหลดเสร็จ จะได้ลิงก์มาบันทึกลง Firestore
@@ -96,16 +97,61 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  // ================= Cloudinary (SIGNED) =================
+  // NOTE: เปลี่ยน BASE_URL ให้เป็นของ backend คุณ
+  // static const String _SIGN_BASE_URL =
+  //     "https://YOUR-API-DOMAIN/cloudinary/sign";
+
+  // Future<Map<String, dynamic>> _getCloudinarySignature(String publicId) async {
+  //   final res = await http.post(
+  //     Uri.parse(_SIGN_BASE_URL),
+  //     body: {
+  //       // ส่ง public_id ให้ backend ใส่ใน signature ด้วย
+  //       'public_id': publicId,
+  //     },
+  //   );
+  //   if (res.statusCode != 200) {
+  //     throw Exception('Sign failed: ${res.body}');
+  //   }
+  //   return Map<String, dynamic>.from(jsonDecode(res.body));
+  // }
+
   Future<String?> _uploadProfileImage({required String phone}) async {
     if (_pickedImage == null) return null;
+
     try {
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profiles')
-          .child('$phone.jpg');
-      final uploadTask = await ref.putFile(File(_pickedImage!.path));
-      final url = await uploadTask.ref.getDownloadURL();
-      return url;
+      const cloudName = 'drskwb4o3'; // ← ของคุณ
+      const uploadPreset = 'images'; // ← preset ที่โชว์ในรูป
+      const folder = 'images'; // ← โฟลเดอร์ปลายทาง
+
+      // หมายเหตุ: จากรูป preset ของคุณ Overwrite = false
+      // เพื่อกันชนกันเวลาอัปซ้ำ ให้ตั้ง public_id ให้ไม่ซ้ำ (ใส่ timestamp ต่อท้าย)
+      final publicId =
+          'profiles/${phone}_${DateTime.now().millisecondsSinceEpoch}';
+
+      final url = Uri.parse(
+        'https://api.cloudinary.com/v1_1/$cloudName/image/upload',
+      );
+
+      final req = http.MultipartRequest('POST', url)
+        ..fields['upload_preset'] =
+            uploadPreset // ใช้ unsigned preset
+        ..fields['folder'] = folder
+        ..fields['public_id'] = publicId
+        ..files.add(
+          await http.MultipartFile.fromPath('file', _pickedImage!.path),
+        );
+
+      final res = await req.send();
+      final body = await res.stream.bytesToString();
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        return json['secure_url'] as String?;
+      } else {
+        debugPrint('Cloudinary upload error ${res.statusCode}: $body');
+        throw Exception('Upload failed');
+      }
     } catch (e) {
       if (!mounted) return null;
       ScaffoldMessenger.of(
@@ -286,7 +332,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          // ===== Avatar + ปุ่มกล้อง (แทนโลโก้สี่เหลี่ยมเดิม) =====
+                          // ===== Avatar + ปุ่มกล้อง =====
                           Center(
                             child: Stack(
                               children: [

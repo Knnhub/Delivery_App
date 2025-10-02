@@ -9,6 +9,8 @@ import 'pages/home.dart';
 import 'pages/login.dart';
 import 'pages/register.dart';
 
+import 'pages/test_image.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -36,6 +38,7 @@ class MyApp extends StatelessWidget {
         '/firebase': (context) => const FirebasePage(),
         '/userHome': (ctx) => const UserhomePage(), // หลัง Login เป็น user
         '/riderHome': (ctx) => const RiderhomePage(), // หลัง Login เป็น rider
+        '/testImage': (ctx) => const TestImage(),
       },
     );
   }
