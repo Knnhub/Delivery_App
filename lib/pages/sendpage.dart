@@ -1,14 +1,16 @@
-import 'dart:developer';
+// 🎯 ไฟล์: lib/pages/sendpage.dart (ฉบับอัปเดต)
 
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:developer';
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:DefaultFirebaseOptions.dart'; // ✅ ดึงเบอร์จาก Auth
-// import 'firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 class SendPage extends StatefulWidget {
   final String? senderPhone;
-
   const SendPage({super.key, this.senderPhone});
 
   @override
@@ -19,37 +21,26 @@ class _SendPageState extends State<SendPage> {
   static const String RECEIVER_COLLECTION = 'user';
   final _formKey = GlobalKey<FormState>();
 
-  // ผู้ส่ง (ดึงจาก Firebase Auth)
-  // String? _senderPhone;
-
-  // ค้นผู้รับด้วยเบอร์โทร
   final _receiverPhoneCtl = TextEditingController();
 
-  // สถานะโหลด/ข้อมูลผู้รับ
   bool _loadingReceiver = false;
   Map<String, dynamic>? _receiverDoc;
   List<Map<String, dynamic>> _receiverAddresses = [];
   Map<String, dynamic>? _selectedReceiverAddress;
 
-  // รายการสินค้า (เพิ่ม/ลบได้)
   final List<_ItemRow> _items = [_ItemRow()];
-
   bool _submitting = false;
 
-  // ลบข้อมูลจาก textfiled เมื่อสร้างพัสดุเสร็จ
+  final ImagePicker _picker = ImagePicker();
+
   void _resetForm() {
     setState(() {
-      // 1. ล้างข้อมูลผู้รับ
       _receiverPhoneCtl.clear();
       _receiverDoc = null;
       _receiverAddresses = [];
       _selectedReceiverAddress = null;
-
-      // 2. ล้างรายการสินค้าทั้งหมด และสร้างกล่องเปล่าขึ้นมาใหม่ 1 กล่อง
       _items.clear();
       _items.add(_ItemRow());
-
-      // 3. เปลี่ยนสถานะการส่งเป็น false (ถ้าจำเป็น)
       _submitting = false;
     });
   }
@@ -62,39 +53,28 @@ class _SendPageState extends State<SendPage> {
 
   Future<void> _searchReceiverByPhone() async {
     final phone = _receiverPhoneCtl.text.trim();
-    debugPrint('[search] phone="$phone"'); // ลบได้
     if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณากรอกเบอร์โทรศัพท์ผู้รับ')),
       );
       return;
     }
-
-    setState(() {
-      _loadingReceiver = true;
-      _receiverDoc = null;
-      _receiverAddresses = [];
-      _selectedReceiverAddress = null;
-    });
-
+    setState(() => _loadingReceiver = true);
     try {
       final doc = await FirebaseFirestore.instance
           .collection(RECEIVER_COLLECTION)
           .doc(phone)
           .get();
-
       if (!doc.exists) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('ไม่พบผู้ใช้หมายเลข $phone')));
         return;
       }
-
       final data = doc.data()!;
       final addrs = (data['addresses'] as List<dynamic>? ?? [])
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
-
       setState(() {
         _receiverDoc = data..['phone'] = phone;
         _receiverAddresses = addrs;
@@ -113,50 +93,69 @@ class _SendPageState extends State<SendPage> {
 
   void _addItemRow() => setState(() => _items.add(_ItemRow()));
   void _removeItemRow(int index) {
-    if (_items.length == 1) return;
-    setState(() => _items.removeAt(index));
+    if (_items.length > 1) {
+      setState(() => _items.removeAt(index));
+    }
+  }
+
+  Future<String?> _uploadItemImage(XFile imageFile) async {
+    try {
+      const cloudName = 'drskwb4o3';
+      const uploadPreset = 'images';
+      const folder = 'deliveries';
+
+      final publicId =
+          '${folder}/${DateTime.now().millisecondsSinceEpoch}_${imageFile.name}';
+      final url = Uri.parse(
+        'https://api.cloudinary.com/v1_1/$cloudName/image/upload',
+      );
+
+      final req = http.MultipartRequest('POST', url)
+        ..fields['upload_preset'] = uploadPreset
+        ..fields['folder'] = folder
+        ..fields['public_id'] = publicId
+        ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+
+      final res = await req.send();
+      final body = await res.stream.bytesToString();
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        return json['secure_url'] as String?;
+      } else {
+        throw Exception('Upload failed with status ${res.statusCode}: $body');
+      }
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ: $e')));
+      return null;
+    }
   }
 
   Future<void> _submit() async {
-    // ✅ ต้องมีเบอร์ผู้ส่งจาก Auth
-    debugPrint('--- Checking senderPhone values ---');
-    debugPrint(
-      'Value from previous page (widget.senderPhone): ${widget.senderPhone}',
-    );
-    debugPrint(
-      'Value from initState state (_senderPhone): ${widget.senderPhone}',
-    );
-    debugPrint('------------------------------------');
-
     final senderPhone = widget.senderPhone;
     if (senderPhone == null || senderPhone.isEmpty) {
-      debugPrint('[submit][abort] no sender phone'); // ลบได้
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('ไม่พบเบอร์ผู้ส่ง (โปรดเข้าสู่ระบบด้วยเบอร์โทร)'),
+          content: Text('ไม่พบเบอร์ผู้ส่ง (โปรดเข้าสู่ระบบอีกครั้ง)'),
         ),
       );
       return;
     }
 
-    // ตรวจสอบผู้รับ/ที่อยู่/สินค้า
-    if (_receiverDoc == null) {
+    if (_receiverDoc == null || _selectedReceiverAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณาค้นหาและเลือกผู้รับก่อน')),
+        const SnackBar(content: Text('กรุณาเลือกผู้รับและที่อยู่ให้ครบถ้วน')),
       );
       return;
     }
-    if (_selectedReceiverAddress == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('กรุณาเลือกที่อยู่ผู้รับ')));
-      return;
-    }
-    final items = _items
-        .map((e) => e.toMap())
-        .where((m) => (m['name'] as String).trim().isNotEmpty)
+
+    final validItems = _items
+        .where((item) => item.name.trim().isNotEmpty)
         .toList();
-    if (items.isEmpty) {
+    if (validItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ')),
       );
@@ -165,26 +164,35 @@ class _SendPageState extends State<SendPage> {
 
     setState(() => _submitting = true);
 
-    // --- ✨ ส่วนที่เพิ่มเข้ามา ---
-    // 1. ค้นหาชื่อของผู้ส่ง (sender) จากเบอร์โทร
-    String senderName = ''; // ตั้งค่าเริ่มต้นเป็นค่าว่าง
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('user')
-          .doc(senderPhone)
-          .get();
-      if (userDoc.exists) {
-        senderName = userDoc.data()?['name'] as String? ?? '';
+      List<Map<String, dynamic>> itemsForPayload = [];
+      for (final item in validItems) {
+        String? imageUrl;
+        if (item.pickedImage != null) {
+          imageUrl = await _uploadItemImage(item.pickedImage!);
+        }
+        itemsForPayload.add({
+          'name': item.name.trim(),
+          'qty': item.qty,
+          'weight': item.weight,
+          'note': item.note?.trim(),
+          'imageUrl': imageUrl,
+        });
       }
-    } catch (e) {
-      log("ไม่สามารถค้นหาชื่อผู้ส่งได้: $e");
-    }
 
-    debugPrint('[submit] receiverDoc=$_receiverDoc'); // ลบได้
-    debugPrint('[submit] items=$items'); // ลบได้
-    debugPrint('[submit] selectedAddress=$_selectedReceiverAddress'); // ลบได้
+      String senderName = '';
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('user')
+            .doc(senderPhone)
+            .get();
+        if (userDoc.exists) {
+          senderName = userDoc.data()?['name'] as String? ?? '';
+        }
+      } catch (e) {
+        log("ไม่สามารถค้นหาชื่อผู้ส่งได้: $e");
+      }
 
-    try {
       final receiverPhone = _receiverDoc!['phone'] as String;
       final receiverName = (_receiverDoc!['name'] ?? '') as String? ?? '';
       final addr = _selectedReceiverAddress!;
@@ -195,30 +203,26 @@ class _SendPageState extends State<SendPage> {
       };
 
       final payload = {
-        'senderId': senderPhone, // ✅ ใช้เบอร์จาก Auth
-        'senderName': senderName, // เพิ่มชื่อผู้ส่ง
+        'senderId': senderPhone,
+        'senderName': senderName,
         'receiverId': receiverPhone,
         'receiverName': receiverName,
         'receiverPhone': receiverPhone,
         'receiverAddress': receiverAddr,
-        'items': items, // [{name, qty, weight, note}]
+        'items': itemsForPayload,
         'status': 'created',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
       await FirebaseFirestore.instance.collection('deliveries').add(payload);
-      debugPrint('[submit] created OK'); // ลบได้
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('สร้างคำสั่งส่งพัสดุสำเร็จ')),
       );
-      //  ล้างข้อมูลในฟอร์มเมื่อสร้างพัสดุเสร็จ
       _resetForm();
-      // Navigator.maybePop(context);
-    } catch (e, st) {
-      debugPrint('[submit][error] $e\\n$st');
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -234,7 +238,6 @@ class _SendPageState extends State<SendPage> {
         ? '—'
         : '${_selectedReceiverAddress?['address'] ?? ''}'
               '${_selectedReceiverAddress?['lat'] != null ? '\n(${_selectedReceiverAddress?['lat']}, ${_selectedReceiverAddress?['lng']})' : ''}';
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('ส่งพัสดุ'),
@@ -242,12 +245,7 @@ class _SendPageState extends State<SendPage> {
           if (widget.senderPhone != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Center(
-                child: Text(
-                  widget.senderPhone!, // โชว์ไว้ตรวจสอบ (จะเอาออกก็ได้)
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
+              child: Center(child: Text(widget.senderPhone!)),
             ),
         ],
       ),
@@ -256,7 +254,6 @@ class _SendPageState extends State<SendPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ค้นหาผู้รับ
             Text('ผู้รับ', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Row(
@@ -290,7 +287,6 @@ class _SendPageState extends State<SendPage> {
               ],
             ),
             const SizedBox(height: 12),
-
             if (_receiverDoc != null) ...[
               Card(
                 child: ListTile(
@@ -300,8 +296,6 @@ class _SendPageState extends State<SendPage> {
                 ),
               ),
               const SizedBox(height: 8),
-
-              // เลือกที่อยู่ผู้รับ
               DropdownButtonFormField<Map<String, dynamic>>(
                 value: _selectedReceiverAddress,
                 items: _receiverAddresses.map((m) {
@@ -328,8 +322,6 @@ class _SendPageState extends State<SendPage> {
               Text(addrHint, style: const TextStyle(color: Colors.black54)),
               const SizedBox(height: 16),
             ],
-
-            // รายการสินค้า (หลายชิ้น)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -345,7 +337,6 @@ class _SendPageState extends State<SendPage> {
               ],
             ),
             const SizedBox(height: 8),
-
             ...List.generate(_items.length, (index) {
               final item = _items[index];
               return Padding(
@@ -353,13 +344,13 @@ class _SendPageState extends State<SendPage> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _ItemCard(
                   item: item,
-                  onRemove: _items.length == 1
-                      ? null
-                      : () => _removeItemRow(index),
+                  picker: _picker,
+                  onRemove: _items.length > 1
+                      ? () => _removeItemRow(index)
+                      : null,
                 ),
               );
             }),
-
             const SizedBox(height: 16),
             SizedBox(
               height: 52,
@@ -382,7 +373,6 @@ class _SendPageState extends State<SendPage> {
   }
 }
 
-/// ===== โมเดลสินค้าในฟอร์ม (เก็บในหน่วยความจำ) =====
 class _ItemRow {
   _ItemRow();
   final String id = UniqueKey().toString();
@@ -390,20 +380,19 @@ class _ItemRow {
   int qty = 1;
   double? weight;
   String? note;
-
-  Map<String, dynamic> toMap() => {
-    'name': name.trim(),
-    'qty': qty,
-    'weight': weight,
-    'note': note?.trim(),
-  };
+  XFile? pickedImage;
 }
 
-/// ===== การ์ด UI ของแต่ละสินค้า =====
 class _ItemCard extends StatefulWidget {
-  const _ItemCard({required this.item, this.onRemove, super.key});
+  const _ItemCard({
+    required this.item,
+    required this.picker,
+    this.onRemove,
+    super.key,
+  });
 
   final _ItemRow item;
+  final ImagePicker picker;
   final VoidCallback? onRemove;
 
   @override
@@ -416,6 +405,8 @@ class _ItemCardState extends State<_ItemCard> {
   final _weightCtl = TextEditingController();
   final _noteCtl = TextEditingController();
 
+  XFile? _pickedImage;
+
   @override
   void initState() {
     super.initState();
@@ -423,6 +414,7 @@ class _ItemCardState extends State<_ItemCard> {
     _qtyCtl.text = widget.item.qty.toString();
     _weightCtl.text = widget.item.weight?.toString() ?? '';
     _noteCtl.text = widget.item.note ?? '';
+    _pickedImage = widget.item.pickedImage;
   }
 
   @override
@@ -439,7 +431,22 @@ class _ItemCardState extends State<_ItemCard> {
       ..name = _nameCtl.text
       ..qty = int.tryParse(_qtyCtl.text) ?? 1
       ..weight = double.tryParse(_weightCtl.text)
-      ..note = _noteCtl.text.isNotEmpty ? _noteCtl.text : null;
+      ..note = _noteCtl.text.isNotEmpty ? _noteCtl.text : null
+      ..pickedImage = _pickedImage;
+  }
+
+  Future<void> _pickImage() async {
+    final file = await widget.picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1024,
+    );
+    if (file != null) {
+      setState(() {
+        _pickedImage = file;
+        _sync();
+      });
+    }
   }
 
   @override
@@ -448,21 +455,40 @@ class _ItemCardState extends State<_ItemCard> {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: _nameCtl,
-                    decoration: const InputDecoration(
-                      labelText: 'ชื่อสินค้า',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => _sync(),
+            if (_pickedImage != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    File(_pickedImage!.path),
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
                   ),
                 ),
-                const SizedBox(width: 8),
+              ),
+            ElevatedButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(
+                _pickedImage == null ? 'เพิ่มรูปพัสดุ' : 'เปลี่ยนรูป',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _nameCtl,
+              decoration: const InputDecoration(
+                labelText: 'ชื่อสินค้า',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => _sync(),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
                 Expanded(
                   child: TextField(
                     controller: _qtyCtl,
@@ -474,28 +500,13 @@ class _ItemCardState extends State<_ItemCard> {
                     onChanged: (_) => _sync(),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: _weightCtl,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'น้ำหนัก (เช่น กก.)',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => _sync(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _noteCtl,
-                    decoration: const InputDecoration(
-                      labelText: 'หมายเหตุ (ถ้ามี)',
+                      labelText: 'น้ำหนัก (กก.)',
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (_) => _sync(),
@@ -503,17 +514,25 @@ class _ItemCardState extends State<_ItemCard> {
                 ),
               ],
             ),
-            if (widget.onRemove != null) ...[
-              const SizedBox(height: 8),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _noteCtl,
+              decoration: const InputDecoration(
+                labelText: 'รายละเอียดสินค้า',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => _sync(),
+            ),
+            if (widget.onRemove != null)
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
                   onPressed: widget.onRemove,
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('ลบรายการนี้'),
                 ),
               ),
-            ],
           ],
         ),
       ),

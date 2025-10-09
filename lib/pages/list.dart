@@ -233,18 +233,52 @@ class _DeliveryDetailPage extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          ...items.map(
-            (m) => Card(
-              child: ListTile(
-                title: Text('${m['name'] ?? '-'}'),
-                subtitle: Text(
-                  'จำนวน: ${m['qty'] ?? '-'}'
-                  '${m['weight'] != null ? ' • น้ำหนัก: ${m['weight']}' : ''}'
-                  '${(m['note'] ?? '').toString().isNotEmpty ? '\nหมายเหตุ: ${m['note']}' : ''}',
-                ),
+          ...items.map((itemData) {
+            final imageUrl = itemData['imageUrl'] as String?;
+
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (imageUrl != null && imageUrl.isNotEmpty)
+                    Image.network(
+                      imageUrl,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(
+                          heightFactor: 4,
+                          child: CircularProgressIndicator(),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          heightFactor: 4,
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 40,
+                            color: Colors.grey,
+                          ),
+                        );
+                      },
+                    ),
+
+                  ListTile(
+                    title: Text('${itemData['name'] ?? '-'}'),
+                    subtitle: Text(
+                      'จำนวน: ${itemData['qty'] ?? '-'}'
+                      '${itemData['weight'] != null ? ' • น้ำหนัก: ${itemData['weight']} กก.' : ''}'
+                      '${(itemData['note'] ?? '').toString().isNotEmpty ? '\nหมายเหตุ: ${itemData['note']}' : ''}',
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );

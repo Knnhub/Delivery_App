@@ -213,7 +213,9 @@ class _DeliveryDetailPage extends StatelessWidget {
     final items = (data['items'] as List?)?.cast<Map>() ?? const [];
     final addr = (data['receiverAddress'] ?? {}) as Map<String, dynamic>;
     return Scaffold(
-      appBar: AppBar(title: Text('หมายเลขพัสดุ #$docId')),
+      appBar: AppBar(
+        title: Text('หมายเลขพัสดุ #${docId.substring(0, 6)}...'),
+      ), // ย่อ ID ให้สั้นลง
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -230,24 +232,66 @@ class _DeliveryDetailPage extends StatelessWidget {
               '${addr['lat'] != null ? '\n(${addr['lat']}, ${addr['lng']})' : ''}',
             ),
           ),
-          const SizedBox(height: 8),
+          const Divider(height: 24), // เพิ่มเส้นคั่น
           const Text(
             'รายการสินค้า',
-            style: TextStyle(fontWeight: FontWeight.bold),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
-          ...items.map(
-            (m) => Card(
-              child: ListTile(
-                title: Text('${m['name'] ?? '-'}'),
-                subtitle: Text(
-                  'จำนวน: ${m['qty'] ?? '-'}'
-                  '${m['weight'] != null ? ' • น้ำหนัก: ${m['weight']}' : ''}'
-                  '${(m['note'] ?? '').toString().isNotEmpty ? '\nหมายเหตุ: ${m['note']}' : ''}',
-                ),
+
+          // --- ✨ นี่คือส่วนที่แก้ไข ---
+          ...items.map((itemData) {
+            // 1. ดึง URL ของรูปภาพออกมาจากข้อมูล
+            final imageUrl = itemData['imageUrl'] as String?;
+
+            return Card(
+              clipBehavior: Clip.antiAlias, // ทำให้ขอบของ Card มีผลกับรูปภาพ
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 2. ตรวจสอบว่ามี imageUrl หรือไม่
+                  if (imageUrl != null && imageUrl.isNotEmpty)
+                    // 3. ถ้ามี ให้แสดงรูปภาพจาก Network
+                    Image.network(
+                      imageUrl,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      // แสดงสถานะ "กำลังโหลด" ขณะดึงรูป
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(
+                          heightFactor: 4, // จัดให้อยู่กลางๆ Card
+                          child: CircularProgressIndicator(),
+                        );
+                      },
+                      // แสดง Icon รูปเสีย หากโหลดรูปไม่สำเร็จ
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          heightFactor: 4,
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 40,
+                            color: Colors.grey,
+                          ),
+                        );
+                      },
+                    ),
+
+                  // 4. แสดงรายละเอียดสินค้าเหมือนเดิม
+                  ListTile(
+                    title: Text('${itemData['name'] ?? '-'}'),
+                    subtitle: Text(
+                      'จำนวน: ${itemData['qty'] ?? '-'}'
+                      '${itemData['weight'] != null ? ' • น้ำหนัก: ${itemData['weight']} กก.' : ''}'
+                      '${(itemData['note'] ?? '').toString().isNotEmpty ? '\nหมายเหตุ: ${itemData['note']}' : ''}',
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
