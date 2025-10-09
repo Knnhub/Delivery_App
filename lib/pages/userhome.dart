@@ -2,6 +2,7 @@
 import 'dart:developer';
 
 import 'package:deliver_app/pages/list.dart';
+import 'package:deliver_app/pages/receive.dart';
 import 'package:flutter/material.dart';
 import 'package:deliver_app/pages/sendpage.dart';
 
@@ -76,7 +77,10 @@ class _UserhomeState extends State<UserhomePage> {
               index: 1,
               root: SendPage(senderPhone: senderPhone),
             ),
-            _buildTabNavigator(index: 2, root: const _ReceiveRootPage()),
+            _buildTabNavigator(
+              index: 2,
+              root: ReceivePage(currentUserPhone: senderPhone),
+            ),
             _buildTabNavigator(index: 3, root: const _LogoutPlaceholder()),
           ],
         ),
