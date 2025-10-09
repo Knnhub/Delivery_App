@@ -97,25 +97,6 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  // ================= Cloudinary (SIGNED) =================
-  // NOTE: เปลี่ยน BASE_URL ให้เป็นของ backend คุณ
-  // static const String _SIGN_BASE_URL =
-  //     "https://YOUR-API-DOMAIN/cloudinary/sign";
-
-  // Future<Map<String, dynamic>> _getCloudinarySignature(String publicId) async {
-  //   final res = await http.post(
-  //     Uri.parse(_SIGN_BASE_URL),
-  //     body: {
-  //       // ส่ง public_id ให้ backend ใส่ใน signature ด้วย
-  //       'public_id': publicId,
-  //     },
-  //   );
-  //   if (res.statusCode != 200) {
-  //     throw Exception('Sign failed: ${res.body}');
-  //   }
-  //   return Map<String, dynamic>.from(jsonDecode(res.body));
-  // }
-
   Future<String?> _uploadProfileImage({required String phone}) async {
     if (_pickedImage == null) return null;
 

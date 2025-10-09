@@ -82,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
                             textInputAction: TextInputAction.next,
                             autofillHints: const [AutofillHints.username],
                             decoration: InputDecoration(
-                              hintText: 'ชื่อผู้ใช้',
+                              hintText: 'เบอร์โทรศัพท์',
                               filled: true,
                               fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
@@ -206,7 +206,7 @@ class _LoginPageState extends State<LoginPage> {
 
       final userQuery = await db
           .collection('user')
-          .where('name', isEqualTo: name)
+          .where('phone', isEqualTo: name)
           .limit(1)
           .get();
       if (userQuery.docs.isNotEmpty) {
@@ -215,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         final riderQuery = await db
             .collection('rider')
-            .where('name', isEqualTo: name)
+            .where('phone', isEqualTo: name)
             .limit(1)
             .get();
         if (riderQuery.docs.isNotEmpty) {
