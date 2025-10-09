@@ -1,4 +1,6 @@
 // user_home_page.dart
+import 'dart:developer';
+
 import 'package:deliver_app/pages/list.dart';
 import 'package:flutter/material.dart';
 import 'package:deliver_app/pages/sendpage.dart';
@@ -14,6 +16,19 @@ class UserhomePage extends StatefulWidget {
 class _UserhomeState extends State<UserhomePage> {
   int _currentIndex = 0;
   final _navKeys = List.generate(4, (_) => GlobalKey<NavigatorState>());
+  String? senderPhone;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ฟังก์ชันนี้จะถูกเรียกเพื่อให้เราดึงค่า arguments ที่ถูกส่งมาได้
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is String) {
+      senderPhone = args;
+      log('Userhome received phone: $senderPhone');
+    }
+  }
+  // --- จบส่วนที่เพิ่มเข้ามา ---
 
   Future<bool> _onWillPop() async {
     final nav = _navKeys[_currentIndex].currentState!;
@@ -55,9 +70,12 @@ class _UserhomeState extends State<UserhomePage> {
             // ✅ ใช้ listPage เป็นหน้าในแท็บ List
             _buildTabNavigator(
               index: 0,
-              root: listPage(senderPhone: widget.senderPhone),
+              root: listPage(senderPhone: senderPhone),
             ),
-            _buildTabNavigator(index: 1, root: const SendPage()),
+            _buildTabNavigator(
+              index: 1,
+              root: SendPage(senderPhone: senderPhone),
+            ),
             _buildTabNavigator(index: 2, root: const _ReceiveRootPage()),
             _buildTabNavigator(index: 3, root: const _LogoutPlaceholder()),
           ],

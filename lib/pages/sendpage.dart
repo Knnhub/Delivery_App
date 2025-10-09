@@ -5,7 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class SendPage extends StatefulWidget {
-  const SendPage({super.key});
+  final String? senderPhone;
+
+  const SendPage({super.key, this.senderPhone});
 
   @override
   State<SendPage> createState() => _SendPageState();
@@ -16,7 +18,7 @@ class _SendPageState extends State<SendPage> {
   final _formKey = GlobalKey<FormState>();
 
   // ผู้ส่ง (ดึงจาก Firebase Auth)
-  String? _senderPhone;
+  // String? _senderPhone;
 
   // ค้นผู้รับด้วยเบอร์โทร
   final _receiverPhoneCtl = TextEditingController();
@@ -32,28 +34,74 @@ class _SendPageState extends State<SendPage> {
 
   bool _submitting = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _initSenderPhone();
-  }
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _initSenderPhone();
+  // }
 
-  Future<void> _initSenderPhone() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final phone = user?.phoneNumber; // เช่น +66912345678
-    // ถ้าอยากแปลง +66xxxx → 0xxxx ให้ใช้ฟังก์ชันนี้:
-    // final localPhone = _toLocalPhone(phone);
-    setState(() => _senderPhone = phone);
-  }
+  /// โหลดเบอร์ผู้ส่งจาก Firestore โดยอิง uid ของผู้ใช้ที่ล็อกอิน (กรณีไม่ได้ใช้ Phone Auth)
+  // Future<String?> _loadSenderPhoneFromFirestore() async {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   await user?.reload();
+  //   final uid = user?.uid;
+  //   if (uid == null) return null;
+
+  //   final db = FirebaseFirestore.instance;
+
+  //   // ทางเลือก A: มี mapping แยก เช่น usersByUid/{uid} -> { phone: "+66..." }
+  //   try {
+  //     final byUidDoc = await db.collection('usersByUid').doc(uid).get();
+  //     if (byUidDoc.exists) {
+  //       final phone = byUidDoc.data()?['phone'] as String?;
+  //       if (phone != null && phone.trim().isNotEmpty) return phone.trim();
+  //     }
+  //   } catch (_) {}
+
+  //   // ทางเลือก B: collection 'user' เก็บฟิลด์ 'uid' ไว้
+  //   try {
+  //     final snap = await db
+  //         .collection('user')
+  //         .where('uid', isEqualTo: uid)
+  //         .limit(1)
+  //         .get();
+
+  //     if (snap.docs.isNotEmpty) {
+  //       final doc = snap.docs.first;
+  //       // ใช้ฟิลด์ phone ถ้ามี; ถ้าไม่มี ใช้ doc.id (กรณีตั้ง docId=phone)
+  //       final data = doc.data();
+  //       final phone = (data['phone'] as String?) ?? doc.id;
+  //       if (phone.trim().isNotEmpty) return phone.trim();
+  //     }
+  //   } catch (_) {}
+
+  //   return null;
+  // }
+
+  // Future<void> _initSenderPhone() async {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   await user?.reload();
+
+  //   // 1) ถ้าเป็น Phone Auth จริง ๆ จะมีค่า (กรณีนี้ยังรองรับไว้)
+  //   final authPhone = user?.phoneNumber;
+  //   if (authPhone != null && authPhone.isNotEmpty) {
+  //     setState(() => _senderPhone = authPhone.trim());
+  //     return;
+  //   }
+
+  //   // 2) Fallback: ไปดึงจาก Firestore ด้วย uid
+  //   final phoneFromDb = await _loadSenderPhoneFromFirestore();
+  //   setState(() => _senderPhone = phoneFromDb); // อาจเป็น null ถ้ายังหาไม่เจอ
+  // }
 
   // แปลง +66xxxxxxxxx → 0xxxxxxxxx (ออปชัน)
-  String? _toLocalPhone(String? e164) {
-    if (e164 == null) return null;
-    if (e164.startsWith('+66')) {
-      return '0${e164.substring(3)}';
-    }
-    return e164;
-  }
+  // String? _toLocalPhone(String? e164) {
+  //   if (e164 == null) return null;
+  //   if (e164.startsWith('+66')) {
+  //     return '0${e164.substring(3)}';
+  //   }
+  //   return e164;
+  // }
 
   @override
   void dispose() {
@@ -63,6 +111,7 @@ class _SendPageState extends State<SendPage> {
 
   Future<void> _searchReceiverByPhone() async {
     final phone = _receiverPhoneCtl.text.trim();
+    debugPrint('[search] phone="$phone"'); // ลบได้
     if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณากรอกเบอร์โทรศัพท์ผู้รับ')),
@@ -119,7 +168,18 @@ class _SendPageState extends State<SendPage> {
 
   Future<void> _submit() async {
     // ✅ ต้องมีเบอร์ผู้ส่งจาก Auth
-    if (_senderPhone == null || _senderPhone!.isEmpty) {
+    debugPrint('--- Checking senderPhone values ---');
+    debugPrint(
+      'Value from previous page (widget.senderPhone): ${widget.senderPhone}',
+    );
+    debugPrint(
+      'Value from initState state (_senderPhone): ${widget.senderPhone}',
+    );
+    debugPrint('------------------------------------');
+
+    final senderPhone = widget.senderPhone;
+    if (senderPhone == null || senderPhone.isEmpty) {
+      debugPrint('[submit][abort] no sender phone'); // ลบได้
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('ไม่พบเบอร์ผู้ส่ง (โปรดเข้าสู่ระบบด้วยเบอร์โทร)'),
@@ -153,6 +213,11 @@ class _SendPageState extends State<SendPage> {
     }
 
     setState(() => _submitting = true);
+
+    debugPrint('[submit] receiverDoc=$_receiverDoc'); // ลบได้
+    debugPrint('[submit] items=$items'); // ลบได้
+    debugPrint('[submit] selectedAddress=$_selectedReceiverAddress'); // ลบได้
+
     try {
       final receiverPhone = _receiverDoc!['phone'] as String;
       final receiverName = (_receiverDoc!['name'] ?? '') as String? ?? '';
@@ -164,7 +229,7 @@ class _SendPageState extends State<SendPage> {
       };
 
       final payload = {
-        'senderId': _senderPhone, // ✅ ใช้เบอร์จาก Auth
+        'senderId': senderPhone, // ✅ ใช้เบอร์จาก Auth
         'receiverId': receiverPhone,
         'receiverName': receiverName,
         'receiverPhone': receiverPhone,
@@ -176,13 +241,15 @@ class _SendPageState extends State<SendPage> {
       };
 
       await FirebaseFirestore.instance.collection('deliveries').add(payload);
+      debugPrint('[submit] created OK'); // ลบได้
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('สร้างคำสั่งส่งพัสดุสำเร็จ')),
       );
-      Navigator.maybePop(context);
-    } catch (e) {
+      // Navigator.maybePop(context);
+    } catch (e, st) {
+      debugPrint('[submit][error] $e\\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -203,12 +270,12 @@ class _SendPageState extends State<SendPage> {
       appBar: AppBar(
         title: const Text('ส่งพัสดุ'),
         actions: [
-          if (_senderPhone != null)
+          if (widget.senderPhone != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Center(
                 child: Text(
-                  _senderPhone!, // โชว์ไว้ตรวจสอบ (จะเอาออกก็ได้)
+                  widget.senderPhone!, // โชว์ไว้ตรวจสอบ (จะเอาออกก็ได้)
                   style: const TextStyle(fontSize: 12),
                 ),
               ),

@@ -215,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         final riderQuery = await db
             .collection('rider')
-            .where('phone', isEqualTo: name)
+            .where('hone', isEqualTo: name)
             .limit(1)
             .get();
         if (riderQuery.docs.isNotEmpty) {
@@ -245,7 +245,7 @@ class _LoginPageState extends State<LoginPage> {
         );
         if (!mounted) return;
         final nextRoute = role == 'user' ? '/userHome' : '/riderHome';
-        Navigator.pushReplacementNamed(context, nextRoute);
+        Navigator.pushReplacementNamed(context, nextRoute, arguments: name);
       } else {
         messenger.showSnackBar(
           const SnackBar(content: Text('รหัสผ่านไม่ถูกต้อง')),
