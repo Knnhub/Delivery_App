@@ -25,6 +25,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final passwordCtl = TextEditingController();
   final nameCtl = TextEditingController();
   final addressCtl = TextEditingController();
+  final vehicleLicensePlateCtl = TextEditingController();
 
   // Role selection
   String role = 'user'; // 'user' | 'rider'
@@ -35,7 +36,9 @@ class _RegisterPageState extends State<RegisterPage> {
   // Image Picker
   final ImagePicker _picker = ImagePicker();
   XFile? _pickedImage;
-  String? _profilePicUrl; // หลังอัพโหลดเสร็จ จะได้ลิงก์มาบันทึกลง Firestore
+  XFile? _vehicleImage;
+  String? _profilePicUrl; // หลังอัปโหลดเสร็จ จะได้ลิงก์มาบันทึกลง Firestore
+  String? _vehiclePicUrl;
 
   // Map state
   final MapController _mapController = MapController();
@@ -55,6 +58,7 @@ class _RegisterPageState extends State<RegisterPage> {
     passwordCtl.dispose();
     nameCtl.dispose();
     addressCtl.dispose();
+    vehicleLicensePlateCtl.dispose();
     super.dispose();
   }
 
@@ -97,6 +101,38 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  Future<void> _pickVehicleImage() async {
+    final source = await showModalBottomSheet<ImageSource?>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('เลือกจากคลังรูป'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('ถ่ายรูปใหม่'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final file = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+    if (file != null) {
+      setState(() => _vehicleImage = file);
+    }
+  }
+
   Future<String?> _uploadProfileImage({required String phone}) async {
     if (_pickedImage == null) return null;
 
@@ -105,8 +141,6 @@ class _RegisterPageState extends State<RegisterPage> {
       const uploadPreset = 'images'; // ← preset ที่โชว์ในรูป
       const folder = 'images'; // ← โฟลเดอร์ปลายทาง
 
-      // หมายเหตุ: จากรูป preset ของคุณ Overwrite = false
-      // เพื่อกันชนกันเวลาอัปซ้ำ ให้ตั้ง public_id ให้ไม่ซ้ำ (ใส่ timestamp ต่อท้าย)
       final publicId =
           'profiles/${phone}_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -138,6 +172,48 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ: $e')));
+      return null;
+    }
+  }
+
+  Future<String?> _uploadVehicleImage({required String phone}) async {
+    if (_vehicleImage == null) return null;
+
+    try {
+      const cloudName = 'drskwb4o3';
+      const uploadPreset = 'images';
+      const folder = 'images';
+
+      final publicId =
+          'vehicles/${phone}_${DateTime.now().millisecondsSinceEpoch}';
+
+      final url = Uri.parse(
+        'https://api.cloudinary.com/v1_1/$cloudName/image/upload',
+      );
+
+      final req = http.MultipartRequest('POST', url)
+        ..fields['upload_preset'] = uploadPreset
+        ..fields['folder'] = folder
+        ..fields['public_id'] = publicId
+        ..files.add(
+          await http.MultipartFile.fromPath('file', _vehicleImage!.path),
+        );
+
+      final res = await req.send();
+      final body = await res.stream.bytesToString();
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        return json['secure_url'] as String?;
+      } else {
+        debugPrint('Cloudinary upload error ${res.statusCode}: $body');
+        throw Exception('Upload failed');
+      }
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('อัปโหลดรูปภาพรถไม่สำเร็จ: $e')));
       return null;
     }
   }
@@ -240,18 +316,29 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       final phone = phoneCtl.text.trim();
 
-      // อัปโหลดรูปก่อน (ถ้ามี)
+      // อัปโหลดรูปโปรไฟล์ (ถ้ามี)
       _profilePicUrl = await _uploadProfileImage(phone: phone);
 
-      final data = {
+      // อัปโหลดรูปรถ (ถ้าเป็นไรเดอร์)
+      if (role == 'rider') {
+        _vehiclePicUrl = await _uploadVehicleImage(phone: phone);
+      }
+
+      final data = <String, dynamic>{
         'phone': phone,
         'passwordHash': hashPassword(passwordCtl.text),
         'name': nameCtl.text.trim(),
         'role': role,
         'profilePicUrl': _profilePicUrl,
-        'addresses': _addresses,
         'createdAt': DateTime.timestamp(),
       };
+
+      if (role == 'user') {
+        data['addresses'] = _addresses;
+      } else if (role == 'rider') {
+        data['vehicleLicensePlate'] = vehicleLicensePlateCtl.text.trim();
+        data['vehiclePicUrl'] = _vehiclePicUrl;
+      }
 
       await db.collection(role).doc(phone).set(data);
       log('Registered in collection $role with phone $phone');
@@ -382,14 +469,6 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                           const SizedBox(height: 12),
 
-                          _RoundedField(
-                            controller: addressCtl,
-                            hintText: _reverseGeocoding
-                                ? 'กำลังค้นหาชื่อสถานที่…'
-                                : 'ที่อยู่ (พิมพ์แล้วกด ค้นหาตำแหน่ง หรือแตะบนแผนที่)',
-                            maxLines: 2,
-                          ),
-
                           const SizedBox(height: 12),
 
                           Row(
@@ -411,73 +490,142 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 12),
 
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              ElevatedButton.icon(
-                                onPressed: _geocodeAddress,
-                                icon: const Icon(Icons.search),
-                                label: const Text('ค้นหาตำแหน่ง'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF8C78E8),
-                                  foregroundColor: const Color(0xFFE9D5FF),
+                          if (role == 'rider') ...[
+                            const SizedBox(height: 12),
+                            const Text(
+                              'ข้อมูลยานพาหนะ',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: GestureDetector(
+                                onTap: _pickVehicleImage,
+                                child: Container(
+                                  height: 150,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    image: _vehicleImage != null
+                                        ? DecorationImage(
+                                            image: FileImage(
+                                              File(_vehicleImage!.path),
+                                            ),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : null,
+                                  ),
+                                  child: _vehicleImage == null
+                                      ? const Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.directions_car,
+                                                size: 40,
+                                                color: Colors.black54,
+                                              ),
+                                              Text('ถ่ายรูปรถ'),
+                                            ],
+                                          ),
+                                        )
+                                      : null,
                                 ),
                               ),
-                              OutlinedButton.icon(
-                                onPressed: _addCurrentAddress,
-                                icon: const Icon(
-                                  Icons.add_location_alt_outlined,
+                            ),
+                            const SizedBox(height: 12),
+                            _RoundedField(
+                              controller: vehicleLicensePlateCtl,
+                              hintText: 'เลขป้ายทะเบียนรถ',
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+
+                          if (role == 'user')
+                            _RoundedField(
+                              controller: addressCtl,
+                              hintText: _reverseGeocoding
+                                  ? 'กำลังค้นหาชื่อสถานที่…'
+                                  : 'ที่อยู่ (พิมพ์แล้วกด ค้นหาตำแหน่ง หรือแตะบนแผนที่)',
+                              maxLines: 2,
+                            ),
+
+                          if (role == 'user')
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: _geocodeAddress,
+                                  icon: const Icon(Icons.search),
+                                  label: const Text('ค้นหาตำแหน่ง'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF8C78E8),
+                                    foregroundColor: const Color(0xFFE9D5FF),
+                                  ),
                                 ),
-                                label: const Text('เพิ่มที่อยู่นี้'),
-                              ),
-                              Text('ทั้งหมด ${_addresses.length} ที่อยู่'),
-                            ],
-                          ),
+                                OutlinedButton.icon(
+                                  onPressed: _addCurrentAddress,
+                                  icon: const Icon(
+                                    Icons.add_location_alt_outlined,
+                                  ),
+                                  label: const Text('เพิ่มที่อยู่นี้'),
+                                ),
+                                Text('ทั้งหมด ${_addresses.length} ที่อยู่'),
+                              ],
+                            ),
 
                           SizedBox(height: isTall ? 16 : 12),
 
-                          SizedBox(
-                            height: 280,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: FlutterMap(
-                                mapController: _mapController,
-                                options: MapOptions(
-                                  initialCenter: _center,
-                                  initialZoom: 12,
-                                  onTap: (tapPosition, latlng) =>
-                                      _reverseGeocode(latlng),
-                                ),
-                                children: [
-                                  TileLayer(
-                                    urlTemplate:
-                                        'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=66bb35dc3aad4f21b4b0de85b001cb0a',
-                                    userAgentPackageName: 'com.example.app',
-                                    maxZoom: 19,
+                          if (role == 'user')
+                            SizedBox(
+                              height: 280,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: FlutterMap(
+                                  mapController: _mapController,
+                                  options: MapOptions(
+                                    initialCenter: _center,
+                                    initialZoom: 12,
+                                    onTap: (tapPosition, latlng) =>
+                                        _reverseGeocode(latlng),
                                   ),
-                                  if (_selectedLatLng != null)
-                                    MarkerLayer(
-                                      markers: [
-                                        Marker(
-                                          point: _selectedLatLng!,
-                                          width: 40,
-                                          height: 40,
-                                          child: const Icon(
-                                            Icons.place,
-                                            size: 36,
-                                          ),
-                                        ),
-                                      ],
+                                  children: [
+                                    TileLayer(
+                                      urlTemplate:
+                                          'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=66bb35dc3aad4f21b4b0de85b001cb0a',
+                                      userAgentPackageName: 'com.example.app',
+                                      maxZoom: 19,
                                     ),
-                                ],
+                                    if (_selectedLatLng != null)
+                                      MarkerLayer(
+                                        markers: [
+                                          Marker(
+                                            point: _selectedLatLng!,
+                                            width: 40,
+                                            height: 40,
+                                            child: const Icon(
+                                              Icons.place,
+                                              size: 36,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
 
                           SizedBox(height: isTall ? 20 : 12),
 

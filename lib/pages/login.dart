@@ -215,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         final riderQuery = await db
             .collection('rider')
-            .where('hone', isEqualTo: name)
+            .where('phone', isEqualTo: name)
             .limit(1)
             .get();
         if (riderQuery.docs.isNotEmpty) {

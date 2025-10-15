@@ -18,20 +18,87 @@ class SendPage extends StatefulWidget {
 }
 
 class _SendPageState extends State<SendPage> {
-  static const String RECEIVER_COLLECTION = 'user';
+  static const String USER_COLLECTION =
+      'user'; // ✨ UPDATE: เปลี่ยนชื่อให้สอดคล้องกัน
   final _formKey = GlobalKey<FormState>();
+  var db = FirebaseFirestore.instance;
+  static const String RECEIVER_COLLECTION = 'user';
 
+  // ✨ UPDATE: เพิ่ม State สำหรับฝั่งผู้ส่ง (Sender)
+  bool _loadingSender = true;
+  Map<String, dynamic>? _senderDoc;
+  List<Map<String, dynamic>> _senderAddresses = [];
+  Map<String, dynamic>? _selectedSenderAddress;
+
+  // State สำหรับฝั่งผู้รับ (Receiver)
   final _receiverPhoneCtl = TextEditingController();
-
   bool _loadingReceiver = false;
   Map<String, dynamic>? _receiverDoc;
   List<Map<String, dynamic>> _receiverAddresses = [];
   Map<String, dynamic>? _selectedReceiverAddress;
 
+  // State สำหรับรายการสินค้า
   final List<_ItemRow> _items = [_ItemRow()];
   bool _submitting = false;
 
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    // ✨ UPDATE: เรียกฟังก์ชันดึงข้อมูลผู้ส่ง
+    _fetchSenderData();
+  }
+
+  // ✨ UPDATE: ฟังก์ชันใหม่สำหรับดึงข้อมูลและ log ที่อยู่ผู้ส่ง
+  Future<void> _fetchSenderData() async {
+    log('--- 🚀 เริ่มต้นดึงข้อมูลผู้ส่ง ---');
+    final phone = widget.senderPhone;
+    log('เบอร์โทรที่ได้รับ: $phone');
+
+    if (phone == null || phone.isEmpty) {
+      log('⚠️ หยุดทำงาน: ไม่พบเบอร์โทรผู้ส่ง');
+      setState(() => _loadingSender = false);
+      return;
+    }
+
+    try {
+      // ใช้ db.collection(...).doc(phone).get() เพื่อดึงข้อมูล
+      DocumentSnapshot doc = await db
+          .collection(USER_COLLECTION)
+          .doc(phone)
+          .get();
+
+      if (doc.exists) {
+        log('✅ พบข้อมูลผู้ส่ง!');
+        final data = doc.data() as Map<String, dynamic>;
+
+        // ดึงข้อมูลที่อยู่ (addresses) ซึ่งเป็น Array
+        final addrs = (data['addresses'] as List<dynamic>? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+
+        // ✨ LOG: แสดงผลที่อยู่ใน Console ✨
+        log('🏠 ที่อยู่ของผู้ส่งที่พบ: $addrs');
+
+        setState(() {
+          _senderDoc = data..['phone'] = phone;
+          _senderAddresses = addrs;
+          // ตั้งค่าที่อยู่แรกเป็นค่าเริ่มต้นที่ถูกเลือก
+          if (_senderAddresses.isNotEmpty) {
+            _selectedSenderAddress = _senderAddresses.first;
+          }
+        });
+      } else {
+        log('❓ ไม่พบข้อมูลสำหรับเบอร์: $phone');
+      }
+    } catch (e) {
+      log('❌ เกิดข้อผิดพลาด: $e');
+    } finally {
+      setState(() => _loadingSender = false);
+      log('--- 🏁 สิ้นสุดการดึงข้อมูลผู้ส่ง ---');
+    }
+  }
 
   void _resetForm() {
     setState(() {
@@ -145,6 +212,14 @@ class _SendPageState extends State<SendPage> {
       return;
     }
 
+    // ✨ UPDATE: 1. เพิ่มการตรวจสอบว่าเลือกที่อยู่ผู้ส่งแล้วหรือยัง
+    if (_selectedSenderAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาเลือกที่อยู่ต้นทาง (ผู้ส่ง)')),
+      );
+      return;
+    }
+
     if (_receiverDoc == null || _selectedReceiverAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณาเลือกผู้รับและที่อยู่ให้ครบถ้วน')),
@@ -180,31 +255,30 @@ class _SendPageState extends State<SendPage> {
         });
       }
 
-      String senderName = '';
-      try {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('user')
-            .doc(senderPhone)
-            .get();
-        if (userDoc.exists) {
-          senderName = userDoc.data()?['name'] as String? ?? '';
-        }
-      } catch (e) {
-        log("ไม่สามารถค้นหาชื่อผู้ส่งได้: $e");
-      }
-
-      final receiverPhone = _receiverDoc!['phone'] as String;
-      final receiverName = (_receiverDoc!['name'] ?? '') as String? ?? '';
-      final addr = _selectedReceiverAddress!;
-      final receiverAddr = {
-        'address': addr['address'] ?? '',
-        'lat': (addr['lat'] as num?)?.toDouble(),
-        'lng': (addr['lng'] as num?)?.toDouble(),
+      // ✨ UPDATE: 2. สร้าง Object ของที่อยู่ผู้ส่ง
+      final senderName = (_senderDoc?['name'] as String?) ?? '';
+      final senderAddrData = _selectedSenderAddress!;
+      final senderAddr = {
+        'address': senderAddrData['address'] ?? '',
+        'lat': (senderAddrData['lat'] as num?)?.toDouble(),
+        'lng': (senderAddrData['lng'] as num?)?.toDouble(),
       };
 
+      // ดึงข้อมูลผู้รับ (เหมือนเดิม)
+      final receiverPhone = _receiverDoc!['phone'] as String;
+      final receiverName = (_receiverDoc!['name'] ?? '') as String? ?? '';
+      final receiverAddrData = _selectedReceiverAddress!;
+      final receiverAddr = {
+        'address': receiverAddrData['address'] ?? '',
+        'lat': (receiverAddrData['lat'] as num?)?.toDouble(),
+        'lng': (receiverAddrData['lng'] as num?)?.toDouble(),
+      };
+
+      // ✨ UPDATE: 3. เพิ่ม senderAddress เข้าไปใน payload ที่จะบันทึก
       final payload = {
         'senderId': senderPhone,
         'senderName': senderName,
+        'senderAddress': senderAddr, // <-- เพิ่ม field นี้
         'receiverId': receiverPhone,
         'receiverName': receiverName,
         'receiverPhone': receiverPhone,
@@ -215,7 +289,7 @@ class _SendPageState extends State<SendPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await FirebaseFirestore.instance.collection('deliveries').add(payload);
+      await db.collection('deliveries').add(payload);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
