@@ -1,6 +1,6 @@
 // user_home_page.dart
 import 'dart:developer';
-
+import 'package:deliver_app/pages/profile.dart';
 import 'package:deliver_app/pages/list.dart';
 import 'package:deliver_app/pages/receive.dart';
 import 'package:flutter/material.dart';
@@ -50,8 +50,8 @@ class _UserhomeState extends State<UserhomePage> {
 
   void _onTap(int i) {
     if (i == 3) {
-      Navigator.of(context, rootNavigator: true).pushReplacementNamed('/login');
-      return;
+      // Navigator.of(context, rootNavigator: true).pushReplacementNamed('/login');
+      // return;
     }
     if (_currentIndex == i) {
       _navKeys[i].currentState?.popUntil((r) => r.isFirst);
@@ -81,7 +81,10 @@ class _UserhomeState extends State<UserhomePage> {
               index: 2,
               root: ReceivePage(currentUserPhone: senderPhone),
             ),
-            _buildTabNavigator(index: 3, root: const _LogoutPlaceholder()),
+            _buildTabNavigator(
+              index: 3,
+              root: ProfilePage(currentUserPhone: senderPhone),
+            ),
           ],
         ),
         bottomNavigationBar: BottomNavigationBar(
@@ -95,7 +98,7 @@ class _UserhomeState extends State<UserhomePage> {
               icon: Icon(Icons.move_to_inbox),
               label: 'Receive',
             ),
-            BottomNavigationBarItem(icon: Icon(Icons.logout), label: 'Logout'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'profile'),
           ],
         ),
       ),
