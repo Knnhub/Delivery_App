@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'tracking_map_page.dart';
 
 class ReceivePage extends StatefulWidget {
   // รับเบอร์โทรผู้ใช้ปัจจุบันจาก UserhomePage
@@ -204,27 +205,57 @@ class _StatusChip extends StatelessWidget {
 }
 
 class _DeliveryDetailPage extends StatelessWidget {
-  const _DeliveryDetailPage({required this.docId, required this.data});
+  const _DeliveryDetailPage({
+    required this.docId,
+    required this.data,
+    this.currentUserPhone, // Optional: อาจจะไม่จำเป็นแล้วถ้า TrackingMapPage ใช้แค่ deliveryId
+  });
   final String docId;
   final Map<String, dynamic> data;
+  final String? currentUserPhone;
 
   @override
   Widget build(BuildContext context) {
     final items = (data['items'] as List?)?.cast<Map>() ?? const [];
     final addr = (data['receiverAddress'] ?? {}) as Map<String, dynamic>;
+    final status = (data['status'] ?? 'unknown') as String;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('หมายเลขพัสดุ #${docId.substring(0, 6)}...'),
-      ), // ย่อ ID ให้สั้นลง
+      appBar: AppBar(title: Text('หมายเลขพัสดุ #${docId.substring(0, 6)}...')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          ListTile(
-            title: const Text('ผู้รับ'),
-            subtitle: Text(
-              '${data['receiverName'] ?? ''} (${data['receiverPhone'] ?? ''})',
+          // --- ✨ 1. เพิ่มปุ่มติดตามพัสดุ (แสดงเมื่อกำลังเดินทาง) ✨ ---
+          if (status == 'assigned' ||
+              status == 'picked') // ✅ เช็คสถานะก่อนแสดงปุ่ม
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('ติดตามตำแหน่ง Rider'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(
+                    double.infinity,
+                    48,
+                  ), // ทำให้ปุ่มยาวเต็ม
+                  backgroundColor: Theme.of(context).primaryColor, // สีหลัก
+                  foregroundColor: Colors.white, // สีตัวอักษร
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      // ✅ ไปยัง TrackingMapPage และส่ง deliveryId
+                      builder: (_) => TrackingMapPage(
+                        // receiverPhone: currentUserPhone ?? '', // ส่ง receiverPhone (ถ้า TrackingMapPage ยังต้องการ)
+                        deliveryId: docId, // ✨ ส่ง ID ของงานนี้ไป ✨
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
+          // ------------------------------------
           ListTile(
             title: const Text('ที่อยู่ผู้รับ'),
             subtitle: Text(

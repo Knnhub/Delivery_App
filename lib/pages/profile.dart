@@ -2,10 +2,16 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'dart:developer';
 
 class ProfilePage extends StatefulWidget {
   final String? currentUserPhone;
-  const ProfilePage({super.key, this.currentUserPhone});
+  final bool isRider;
+  const ProfilePage({
+    super.key,
+    this.currentUserPhone,
+    this.isRider = false, // Default to false
+  });
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -23,23 +29,50 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _fetchUserData() async {
-    if (widget.currentUserPhone == null) {
+    final phone = widget.currentUserPhone;
+    log('[ProfilePage] Fetching data for phone: $phone');
+
+    if (phone == null || phone.isEmpty) {
+      log('[ProfilePage] currentUserPhone is null or empty.');
       setState(() => _isLoading = false);
       return;
     }
-    try {
-      final doc = await db
-          .collection('user')
-          .doc(widget.currentUserPhone!)
-          .get();
 
+    DocumentSnapshot? doc;
+    try {
+      // 1. ลองค้นหาใน collection 'user' ก่อน
+      log('[ProfilePage] Trying to fetch from collection: user');
+      doc = await db.collection('user').doc(phone).get();
+
+      // 2. ถ้าไม่เจอใน 'user', ลองค้นหาใน collection 'rider'
+      if (!doc.exists) {
+        log('[ProfilePage] Not found in "user". Trying collection: rider');
+        doc = await db.collection('rider').doc(phone).get();
+      }
+
+      // 3. ตรวจสอบผลลัพธ์สุดท้าย
       if (doc.exists) {
+        log(
+          '[ProfilePage] User data found in collection: ${doc.reference.parent.id}',
+        ); // บอกว่าเจอใน collection ไหน
         setState(() {
-          _userData = doc.data();
+          _userData =
+              doc!.data()
+                  as Map<String, dynamic>?; // ใช้ doc! เพราะเช็ค exists แล้ว
+        });
+      } else {
+        log(
+          '[ProfilePage] User data NOT found in both "user" and "rider" collections for ID: $phone',
+        );
+        setState(() {
+          _userData = null; // เคลียร์ค่าถ้าไม่เจอ
         });
       }
     } catch (e) {
-      print("Error fetching user data: $e");
+      log("[ProfilePage] Error fetching user data: $e");
+      setState(() {
+        _userData = null; // เคลียร์ค่าถ้า error
+      });
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

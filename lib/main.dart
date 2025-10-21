@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:deliver_app/firebase_options.dart';
 import 'package:deliver_app/pages/firebase.dart';
+import 'package:deliver_app/pages/list.dart';
 import 'package:deliver_app/pages/profile.dart';
+import 'package:deliver_app/pages/receive.dart';
 import 'package:deliver_app/pages/riderhome.dart';
+import 'package:deliver_app/pages/sendpage.dart';
 import 'package:deliver_app/pages/userhome.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +41,10 @@ class MyApp extends StatelessWidget {
         '/userHome': (ctx) => const UserhomePage(), // หลัง Login เป็น user
         '/riderHome': (ctx) => const RiderhomePage(), // หลัง Login เป็น rider
         '/profile': (ctx) => const ProfilePage(), // หน้าโปรไฟล์
+        '/list': (ctx) => const listPage(), // หน้าแสดงรายการพัสดุของผู้ใช้
+        '/send': (ctx) => const SendPage(), // หน้าเพิ่มพัสดุ
+        '/ride': (ctx) => const RiderhomePage(), // หน้า rider
+        '/receive': (ctx) => const ReceivePage(), // หน้า รับพัสดุ
       },
     );
   }
