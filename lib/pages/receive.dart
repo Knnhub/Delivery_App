@@ -14,35 +14,30 @@ class ReceivePage extends StatefulWidget {
 class _ReceivePageState extends State<ReceivePage> {
   @override
   Widget build(BuildContext context) {
-    //ส่วนตรวจสอบข้อมูล
-    if (widget.currentUserPhone == null ||
-        widget.currentUserPhone!.trim().isEmpty) {
+    // ✅ ตรวจสอบเบอร์โทรของผู้ใช้ก่อน
+    final phone = widget.currentUserPhone?.trim();
+    if (phone == null || phone.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('พัสดุถึงฉัน')),
         body: const Center(child: Text('ไม่พบหมายเลขผู้ใช้ปัจจุบัน')),
       );
     }
 
-    // ส่วนสร้างคำสั่ง Query
+    // ✅ Query หาเอกสารที่ส่งถึงผู้ใช้คนนี้
     final q = FirebaseFirestore.instance
         .collection('deliveries')
-        .where('receiverPhone', isEqualTo: widget.currentUserPhone)
+        .where('receiverPhone', isEqualTo: phone)
         .orderBy('createdAt', descending: true);
 
-    //ส่วนสร้้าง UI
     return Scaffold(
       appBar: AppBar(title: const Text('พัสดุถึงฉัน')),
       body: StreamBuilder<QuerySnapshot>(
-        stream: q
-            .snapshots(), // บอกให้ StreamBuilder ดักฟังข้อมูลจาก Query ของเรา
+        stream: q.snapshots(),
         builder: (context, snap) {
-          //  ส่วนที่จะสร้าง UI ตามสถานะของข้อมูล
-          // จัดการสถานะต่างๆ ของข้อมูล
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
-            // ถ้าเกิด Error
             if (snap.error.toString().contains('FAILED_PRECONDITION')) {
               return const Center(
                 child: Padding(
@@ -56,13 +51,12 @@ class _ReceivePageState extends State<ReceivePage> {
             }
             return Center(child: Text('เกิดข้อผิดพลาด: ${snap.error}'));
           }
+
           final docs = snap.data?.docs ?? [];
           if (docs.isEmpty) {
-            // ถ้าไม่มีข้อมูล...
             return const Center(child: Text('ยังไม่มีพัสดุส่งถึงคุณ'));
           }
 
-          // --- ✅ ส่วนที่แก้ไข: เปลี่ยนมาใช้ ListView ---
           return ListView.separated(
             padding: const EdgeInsets.all(12),
             itemCount: docs.length,
@@ -91,7 +85,7 @@ class _ReceivePageState extends State<ReceivePage> {
                   ),
                   leading: CircleAvatar(child: Text(items.length.toString())),
                   title: Text(
-                    'จาก: ${senderName.isNotEmpty ? senderName : senderId}', // แสดงเบอร์ผู้ส่ง
+                    'จาก: ${senderName.isNotEmpty ? senderName : senderId}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -101,10 +95,15 @@ class _ReceivePageState extends State<ReceivePage> {
                   ),
                   trailing: _StatusChip(status: status),
                   onTap: () {
+                    // ✅ ส่ง currentUserPhone ต่อไปยังหน้า detail เพื่อใช้เปิดแผนที่
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) =>
-                            _DeliveryDetailPage(docId: docs[i].id, data: data),
+                        builder: (_) => _DeliveryDetailPage(
+                          docId: docs[i].id,
+                          data: data,
+                          currentUserPhone: widget.currentUserPhone,
+                          // currentUserPhone: phone,
+                        ),
                       ),
                     );
                   },
@@ -112,13 +111,12 @@ class _ReceivePageState extends State<ReceivePage> {
               );
             },
           );
-          // --- จบส่วนแก้ไข ---
         },
       ),
     );
   }
 
-  //ฟังชันแปลงวันที่
+  // แปลงวันที่
   String _formatCreatedAt(DateTime? dt) {
     if (dt == null) return 'กำลังสร้าง…';
     final d = dt.toLocal();
@@ -131,8 +129,7 @@ class _ReceivePageState extends State<ReceivePage> {
   }
 }
 
-// --- ✨ Widget ย่อยที่คัดลอกมาจาก list.dart ---
-
+// --- UI แสดงสถานะพัสดุ ---
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.status});
   final String status;
@@ -204,11 +201,12 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
+// --- หน้าแสดงรายละเอียดพัสดุ + ปุ่มติดตาม ---
 class _DeliveryDetailPage extends StatelessWidget {
   const _DeliveryDetailPage({
     required this.docId,
     required this.data,
-    this.currentUserPhone, // Optional: อาจจะไม่จำเป็นแล้วถ้า TrackingMapPage ใช้แค่ deliveryId
+    this.currentUserPhone, // รับมาจาก ReceivePage
   });
   final String docId;
   final Map<String, dynamic> data;
@@ -220,40 +218,51 @@ class _DeliveryDetailPage extends StatelessWidget {
     final addr = (data['receiverAddress'] ?? {}) as Map<String, dynamic>;
     final status = (data['status'] ?? 'unknown') as String;
 
+    final phone = currentUserPhone?.trim();
+    final canTrack =
+        (status == 'assigned' || status == 'picked') &&
+        (phone != null && phone.isNotEmpty);
+
     return Scaffold(
       appBar: AppBar(title: Text('หมายเลขพัสดุ #${docId.substring(0, 6)}...')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // --- ✨ 1. เพิ่มปุ่มติดตามพัสดุ (แสดงเมื่อกำลังเดินทาง) ✨ ---
-          if (status == 'assigned' ||
-              status == 'picked') // ✅ เช็คสถานะก่อนแสดงปุ่ม
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('ติดตามตำแหน่ง Rider'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    48,
-                  ), // ทำให้ปุ่มยาวเต็ม
-                  backgroundColor: Theme.of(context).primaryColor, // สีหลัก
-                  foregroundColor: Colors.white, // สีตัวอักษร
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TrackingMapPage(
-                        receiverPhone: currentUserPhone!,
-                      ), // <-- ใช้ currentUserPhone
-                    ),
-                  );
-                },
+          // ปุ่มติดตามตำแหน่ง Rider (หลาย Rider ของผู้รับ)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('ติดตามตำแหน่ง Rider'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
               ),
+              onPressed: canTrack
+                  ? () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TrackingMapPage(
+                            receiverPhone:
+                                phone!, // ปลอดภัยเพราะ canTrack เช็คแล้ว
+                          ),
+                        ),
+                      );
+                    }
+                  : () {
+                      // แจ้งเหตุผลทำไมกดไม่ได้ (ไม่มีสถานะหรือไม่มีเบอร์)
+                      final reason = (phone == null || phone.isEmpty)
+                          ? 'ไม่พบเบอร์ผู้รับ — เปิดแผนที่ไม่ได้'
+                          : 'พัสดุยังไม่อยู่ในสถานะกำลังเดินทาง';
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(reason)));
+                    },
             ),
-          // ------------------------------------
+          ),
+
           ListTile(
             title: const Text('ที่อยู่ผู้รับ'),
             subtitle: Text(
@@ -261,41 +270,34 @@ class _DeliveryDetailPage extends StatelessWidget {
               '${addr['lat'] != null ? '\n(${addr['lat']}, ${addr['lng']})' : ''}',
             ),
           ),
-          const Divider(height: 24), // เพิ่มเส้นคั่น
+          const Divider(height: 24),
           const Text(
             'รายการสินค้า',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
 
-          // --- ✨ นี่คือส่วนที่แก้ไข ---
           ...items.map((itemData) {
-            // 1. ดึง URL ของรูปภาพออกมาจากข้อมูล
             final imageUrl = itemData['imageUrl'] as String?;
-
             return Card(
-              clipBehavior: Clip.antiAlias, // ทำให้ขอบของ Card มีผลกับรูปภาพ
+              clipBehavior: Clip.antiAlias,
               margin: const EdgeInsets.only(bottom: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2. ตรวจสอบว่ามี imageUrl หรือไม่
                   if (imageUrl != null && imageUrl.isNotEmpty)
-                    // 3. ถ้ามี ให้แสดงรูปภาพจาก Network
                     Image.network(
                       imageUrl,
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      // แสดงสถานะ "กำลังโหลด" ขณะดึงรูป
                       loadingBuilder: (context, child, progress) {
                         if (progress == null) return child;
                         return const Center(
-                          heightFactor: 4, // จัดให้อยู่กลางๆ Card
+                          heightFactor: 4,
                           child: CircularProgressIndicator(),
                         );
                       },
-                      // แสดง Icon รูปเสีย หากโหลดรูปไม่สำเร็จ
                       errorBuilder: (context, error, stackTrace) {
                         return const Center(
                           heightFactor: 4,
@@ -307,8 +309,6 @@ class _DeliveryDetailPage extends StatelessWidget {
                         );
                       },
                     ),
-
-                  // 4. แสดงรายละเอียดสินค้าเหมือนเดิม
                   ListTile(
                     title: Text('${itemData['name'] ?? '-'}'),
                     subtitle: Text(

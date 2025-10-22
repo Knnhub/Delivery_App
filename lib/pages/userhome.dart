@@ -32,12 +32,11 @@ class _UserhomeState extends State<UserhomePage> {
   // --- จบส่วนที่เพิ่มเข้ามา ---
 
   Future<bool> _onWillPop() async {
-    final nav = _navKeys[_currentIndex].currentState!;
-    if (nav.canPop()) {
-      nav.pop();
-      return false;
-    }
-    return true;
+    // ลอง pop ถ้า currentState ไม่ใช่ null และ canPop เป็น true
+    final didPop = await _navKeys[_currentIndex].currentState?.maybePop();
+    // ถ้า didPop เป็น true (pop สำเร็จ) ให้ return false (ไม่ต้องออกจากแอป)
+    // ถ้า didPop เป็น false หรือ null (pop ไม่ได้ หรือ currentState เป็น null) ให้ return true (ออกจากแอป)
+    return !(didPop ?? false);
   }
 
   Widget _buildTabNavigator({required int index, required Widget root}) {

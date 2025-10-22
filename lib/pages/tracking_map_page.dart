@@ -1,4 +1,4 @@
-// 🎯 ไฟล์: lib/pages/tracking_map_page.dart (Multi-Rider Tracking)
+// 🎯 lib/pages/tracking_map_page.dart (Multi-Rider tracking for a receiver)
 
 import 'dart:async';
 import 'dart:developer';
@@ -8,7 +8,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 class TrackingMapPage extends StatefulWidget {
-  final String receiverPhone; // ✅ รับเบอร์ผู้รับแทน deliveryId
+  final String receiverPhone; // ✅ ระบุตัวผู้รับ
 
   const TrackingMapPage({super.key, required this.receiverPhone});
 
@@ -20,18 +20,21 @@ class _TrackingMapPageState extends State<TrackingMapPage> {
   final MapController _mapController = MapController();
   StreamSubscription<QuerySnapshot>? _deliveriesSub;
 
-  Map<String, LatLng> _riderLocations =
-      {}; // เก็บตำแหน่ง Rider หลายคน (key = deliveryId)
-  LatLng? _receiverLocation; // ตำแหน่งผู้รับ
-  bool _hasMovedOnce = false;
+  // เก็บตำแหน่ง Rider หลายคน (key = deliveryId)
+  Map<String, LatLng> _riderLocations = {};
+  // ตำแหน่งผู้รับ (อ่านจาก receiverAddress.lat/lng ของเอกสาร)
+  LatLng? _receiverLocation;
+
+  bool _hasMovedOnce = false; // เคลื่อนกล้องครั้งแรกเมื่อมีข้อมูล
 
   // ศูนย์เริ่มต้น (มหาสารคาม)
   final LatLng _initialCenter = const LatLng(16.1832, 103.3035);
-  final double _initialZoom = 13.0;
+  final double _initialZoom = 12.5;
 
   @override
   void initState() {
     super.initState();
+    log('[TrackingMap] receiverPhone=${widget.receiverPhone}');
     _listenDeliveriesToReceiver();
   }
 
@@ -45,72 +48,67 @@ class _TrackingMapPageState extends State<TrackingMapPage> {
     final query = FirebaseFirestore.instance
         .collection('deliveries')
         .where('receiverPhone', isEqualTo: widget.receiverPhone)
-        .where('status', whereIn: ['assigned', 'picked']); // งานที่กำลังเดินทาง
+        .where('status', whereIn: ['assigned', 'picked']); // งานที่กำลังวิ่ง
 
+    _deliveriesSub?.cancel();
     _deliveriesSub = query.snapshots().listen(
       (snapshot) {
-        log('[TrackingMap] Found ${snapshot.docs.length} deliveries.');
-
-        final newRiderLocations = <String, LatLng>{};
-        LatLng? receiverLatLng;
+        log('[TrackingMap] docs=${snapshot.docs.length}');
+        final riders = <String, LatLng>{};
+        LatLng? recv;
 
         for (final doc in snapshot.docs) {
           final data = doc.data() as Map<String, dynamic>;
 
-          // 📍 ดึงตำแหน่ง Rider
-          final riderLoc = data['riderLocation'] as GeoPoint?;
-          if (riderLoc != null) {
-            newRiderLocations[doc.id] = LatLng(
-              riderLoc.latitude,
-              riderLoc.longitude,
-            );
+          // 🛵 Rider location
+          final gp = data['riderLocation'] as GeoPoint?;
+          if (gp != null) {
+            riders[doc.id] = LatLng(gp.latitude, gp.longitude);
           }
 
-          // 🏠 ดึงตำแหน่งผู้รับ (ใช้ของงานแรก)
-          if (receiverLatLng == null && data['receiverAddress'] != null) {
-            final recv = data['receiverAddress'] as Map<String, dynamic>;
-            final lat = (recv['lat'] as num?)?.toDouble();
-            final lng = (recv['lng'] as num?)?.toDouble();
-            if (lat != null && lng != null) {
-              receiverLatLng = LatLng(lat, lng);
+          // 🏠 Receiver location (ใช้ใบแรกที่มี)
+          if (recv == null) {
+            final ra = data['receiverAddress'] as Map<String, dynamic>?;
+            final rlat = (ra?['lat'] as num?)?.toDouble();
+            final rlng = (ra?['lng'] as num?)?.toDouble();
+            if (rlat != null && rlng != null) {
+              recv = LatLng(rlat, rlng);
             }
           }
         }
 
-        if (mounted) {
-          setState(() {
-            _riderLocations = newRiderLocations;
-            _receiverLocation = receiverLatLng;
-          });
+        if (!mounted) return;
+        setState(() {
+          _riderLocations = riders;
+          _receiverLocation = recv;
+        });
 
-          // ซูมกล้องครั้งแรกเมื่อมีข้อมูล
-          if (!_hasMovedOnce && newRiderLocations.isNotEmpty) {
-            _mapController.move(newRiderLocations.values.first, 14.5);
-            _hasMovedOnce = true;
-          }
+        if (!_hasMovedOnce) {
+          final target = _riderLocations.values.isNotEmpty
+              ? _riderLocations.values.first
+              : (_receiverLocation ?? _initialCenter);
+          _mapController.move(target, 14.5);
+          _hasMovedOnce = true;
         }
       },
       onError: (e) {
         log('[TrackingMap] error: $e');
       },
     );
-
-    log(
-      '[TrackingMap] Listening deliveries for receiver: ${widget.receiverPhone}',
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🧭 Markers
     final markers = <Marker>[
-      // 🛵 Marker สำหรับ Rider แต่ละคน
-      ..._riderLocations.entries.map((entry) {
+      // Riders (หลายคน)
+      ..._riderLocations.entries.map((e) {
         return Marker(
           width: 40,
           height: 40,
-          point: entry.value,
+          point: e.value,
           child: Tooltip(
-            message: 'Rider จากงาน ${entry.key.substring(0, 6)}',
+            message: 'Rider ของงาน ${e.key.substring(0, 6)}',
             child: Image.asset(
               'assets/images/motorcycle_icon.png',
               errorBuilder: (_, __, ___) =>
@@ -119,29 +117,24 @@ class _TrackingMapPageState extends State<TrackingMapPage> {
           ),
         );
       }),
-
-      // 🏠 Marker ผู้รับพัสดุ
+      // Receiver (บ้านผู้รับ)
       if (_receiverLocation != null)
         Marker(
-          width: 80,
-          height: 80,
+          width: 64,
+          height: 64,
           point: _receiverLocation!,
           child: const Tooltip(
-            message: "ที่อยู่ของคุณ",
+            message: 'ที่อยู่ของคุณ',
             child: Icon(Icons.home, color: Colors.green, size: 40),
           ),
         ),
     ];
 
-    // ✅ เส้นเชื่อมแต่ละ Rider → ผู้รับ (optional)
+    // 🔶 เส้นเชื่อมแต่ละ Rider → ผู้รับ
     final polylines = <Polyline>[
       if (_receiverLocation != null)
         ..._riderLocations.values.map(
-          (pos) => Polyline(
-            points: [pos, _receiverLocation!],
-            strokeWidth: 4,
-            color: Colors.orangeAccent,
-          ),
+          (p) => Polyline(points: [p, _receiverLocation!], strokeWidth: 4),
         ),
     ];
 
@@ -154,9 +147,10 @@ class _TrackingMapPageState extends State<TrackingMapPage> {
           initialZoom: _initialZoom,
         ),
         children: [
+          // ✅ ใช้ผู้ให้บริการที่มีคีย์ เพื่อลดโอกาสโดนบล็อก
           TileLayer(
             urlTemplate:
-                'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=YOUR_THUNDERFOREST_API_KEY',
+                'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=66bb35dc3aad4f21b4b0de85b001cb0a',
             userAgentPackageName: 'com.yourcompany.deliveryapp',
           ),
           RichAttributionWidget(
@@ -194,22 +188,19 @@ class _TrackingMapPageState extends State<TrackingMapPage> {
     );
   }
 
-  /// ปรับกล้องให้เห็นทุก Rider + บ้านพร้อมกัน
+  /// ปรับกล้องให้เห็นทุก Rider + บ้านพร้อมกันแบบง่าย ๆ
   void _fitAllMarkers() {
-    if (_riderLocations.isEmpty && _receiverLocation == null) return;
-
-    final allPoints = [
+    final pts = <LatLng>[
       ..._riderLocations.values,
       if (_receiverLocation != null) _receiverLocation!,
     ];
+    if (pts.isEmpty) return;
 
-    // คำนวณขอบเขต (bounds)
-    final latitudes = allPoints.map((p) => p.latitude);
-    final longitudes = allPoints.map((p) => p.longitude);
-    final center = LatLng(
-      (latitudes.reduce((a, b) => a + b) / allPoints.length),
-      (longitudes.reduce((a, b) => a + b) / allPoints.length),
-    );
-    _mapController.move(center, 12.5);
+    final avgLat =
+        pts.map((e) => e.latitude).reduce((a, b) => a + b) / pts.length;
+    final avgLng =
+        pts.map((e) => e.longitude).reduce((a, b) => a + b) / pts.length;
+
+    _mapController.move(LatLng(avgLat, avgLng), 12.5);
   }
 }
