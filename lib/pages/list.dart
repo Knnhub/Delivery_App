@@ -169,11 +169,11 @@ class _StatusChip extends StatelessWidget {
   String _label() {
     switch (status) {
       case 'created':
-        return 'สร้างแล้ว';
+        return 'รอไรเดอร์มารับสินค้า';
       case 'assigned':
-        return 'มอบหมายแล้ว';
+        return 'ไรเดอร์รับงาน';
       case 'picked':
-        return 'รับของแล้ว';
+        return 'กำลังเดินทางไปส่ง';
       case 'delivered':
         return 'ส่งสำเร็จ';
       case 'canceled':

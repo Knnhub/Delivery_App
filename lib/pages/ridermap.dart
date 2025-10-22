@@ -352,8 +352,8 @@ class _RiderMapPageState extends State<RiderMapPage> {
       // ✨ Marker ตำแหน่ง Rider (ไอคอนมอเตอร์ไซค์)
       if (_currentRiderPosition != null)
         Marker(
-          width: 40.0, // ปรับขนาดตามต้องการ
-          height: 40.0,
+          width: 20.0, // ปรับขนาดตามต้องการ
+          height: 20.0,
           point: _currentRiderPosition!,
           child: Transform.rotate(
             // Optional: หมุนไอคอนตามทิศทาง (ต้องใช้ข้อมูล heading จาก geolocator เพิ่มเติม)
