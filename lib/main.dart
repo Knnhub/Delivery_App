@@ -6,6 +6,7 @@ import 'package:deliver_app/pages/profile.dart';
 import 'package:deliver_app/pages/receive.dart';
 import 'package:deliver_app/pages/riderhome.dart';
 import 'package:deliver_app/pages/sendpage.dart';
+import 'package:deliver_app/pages/tracking_map_page.dart';
 import 'package:deliver_app/pages/userhome.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -45,6 +46,8 @@ class MyApp extends StatelessWidget {
         '/send': (ctx) => const SendPage(), // หน้าเพิ่มพัสดุ
         '/ride': (ctx) => const RiderhomePage(), // หน้า rider
         '/receive': (ctx) => const ReceivePage(), // หน้า รับพัสดุ
+        '/trackingMap': (ctx) =>
+            const TrackingMapPage(receiverPhone: 'demoPhone'),
       },
     );
   }

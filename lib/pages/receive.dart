@@ -245,11 +245,9 @@ class _DeliveryDetailPage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      // ✅ ไปยัง TrackingMapPage และส่ง deliveryId
                       builder: (_) => TrackingMapPage(
-                        // receiverPhone: currentUserPhone ?? '', // ส่ง receiverPhone (ถ้า TrackingMapPage ยังต้องการ)
-                        deliveryId: docId, // ✨ ส่ง ID ของงานนี้ไป ✨
-                      ),
+                        receiverPhone: currentUserPhone!,
+                      ), // <-- ใช้ currentUserPhone
                     ),
                   );
                 },

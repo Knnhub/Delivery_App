@@ -1,16 +1,14 @@
-// 🎯 ไฟล์ใหม่: lib/pages/tracking_map_page.dart
+// 🎯 ไฟล์: lib/pages/tracking_map_page.dart (Multi-Rider Tracking)
 
 import 'dart:async';
 import 'dart:developer';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-// import 'package:geolocator/geolocator.dart'; // Optional: ถ้าต้องการแสดงตำแหน่ง User ด้วย
 
 class TrackingMapPage extends StatefulWidget {
-  final String deliveryId;
+  final String receiverPhone; // ✅ รับเบอร์ผู้รับแทน deliveryId
 
   const TrackingMapPage({super.key, required this.receiverPhone});
 
@@ -20,175 +18,198 @@ class TrackingMapPage extends StatefulWidget {
 
 class _TrackingMapPageState extends State<TrackingMapPage> {
   final MapController _mapController = MapController();
-  StreamSubscription? _deliveriesSubscription;
-  Map<String, LatLng> _riderLocations =
-      {}; // เก็บตำแหน่ง Rider แต่ละคน (Key: deliveryId, Value: LatLng)
-  LatLng? _userHomeLocation; // Optional: ตำแหน่งบ้านผู้ใช้
+  StreamSubscription<QuerySnapshot>? _deliveriesSub;
 
-  // ตำแหน่งเริ่มต้น (อาจจะปรับตามตำแหน่งผู้ใช้หรือ Rider คนแรก)
-  final LatLng _initialCenter = const LatLng(16.1832, 103.3035); // มหาสารคาม
+  Map<String, LatLng> _riderLocations =
+      {}; // เก็บตำแหน่ง Rider หลายคน (key = deliveryId)
+  LatLng? _receiverLocation; // ตำแหน่งผู้รับ
+  bool _hasMovedOnce = false;
+
+  // ศูนย์เริ่มต้น (มหาสารคาม)
+  final LatLng _initialCenter = const LatLng(16.1832, 103.3035);
   final double _initialZoom = 13.0;
 
   @override
   void initState() {
     super.initState();
-    _startListeningToDeliveries();
-    // Optional: ดึงตำแหน่งบ้านของผู้ใช้จาก profile มาแสดงเป็น Marker
-    // _fetchUserHomeLocation();
+    _listenDeliveriesToReceiver();
   }
 
   @override
   void dispose() {
-    _deliveriesSubscription?.cancel();
+    _deliveriesSub?.cancel();
     super.dispose();
   }
 
-  // Optional: ดึงตำแหน่งบ้านผู้ใช้
-  // Future<void> _fetchUserHomeLocation() async {
-  //   try {
-  //     final userDoc = await FirebaseFirestore.instance.collection('user').doc(widget.receiverPhone).get();
-  //     if (userDoc.exists) {
-  //       final data = userDoc.data();
-  //       final addresses = data?['addresses'] as List<dynamic>?;
-  //       if (addresses != null && addresses.isNotEmpty) {
-  //         // สมมติว่าใช้ที่อยู่แรกเป็นบ้าน
-  //         final homeAddr = addresses.first as Map<String, dynamic>?;
-  //         final lat = (homeAddr?['lat'] as num?)?.toDouble();
-  //         final lng = (homeAddr?['lng'] as num?)?.toDouble();
-  //         if (lat != null && lng != null && mounted) {
-  //           setState(() => _userHomeLocation = LatLng(lat, lng));
-  //           // อาจจะย้าย map มาตำแหน่งบ้าน
-  //           // _mapController.move(_userHomeLocation!, _initialZoom);
-  //         }
-  //       }
-  //     }
-  //   } catch (e) {
-  //     log("Error fetching user home location: $e");
-  //   }
-  // }
-
-  // ฟังก์ชันเริ่มฟัง Deliveries ที่กำลังมาส่ง
-  void _startListeningToDeliveries() {
+  void _listenDeliveriesToReceiver() {
     final query = FirebaseFirestore.instance
         .collection('deliveries')
         .where('receiverPhone', isEqualTo: widget.receiverPhone)
-        .where(
-          'status',
-          whereIn: ['assigned', 'picked'],
-        ); // กรองเฉพาะที่กำลังเดินทาง
+        .where('status', whereIn: ['assigned', 'picked']); // งานที่กำลังเดินทาง
 
-    _deliveriesSubscription?.cancel(); // ยกเลิก Listener เก่า
-    _deliveriesSubscription = query.snapshots().listen(
+    _deliveriesSub = query.snapshots().listen(
       (snapshot) {
-        log(
-          "[TrackingMap] Received ${snapshot.docs.length} active deliveries.",
-        );
-        Map<String, LatLng> updatedLocations = {};
-        bool shouldMoveMap =
-            _riderLocations.isEmpty; // ย้ายแผนที่ถ้ายังไม่เคยมี Rider แสดง
+        log('[TrackingMap] Found ${snapshot.docs.length} deliveries.');
 
-        for (var doc in snapshot.docs) {
+        final newRiderLocations = <String, LatLng>{};
+        LatLng? receiverLatLng;
+
+        for (final doc in snapshot.docs) {
           final data = doc.data() as Map<String, dynamic>;
-          final riderLocationGeoPoint = data['riderLocation'] as GeoPoint?;
 
-          if (riderLocationGeoPoint != null) {
-            final riderLatLng = LatLng(
-              riderLocationGeoPoint.latitude,
-              riderLocationGeoPoint.longitude,
+          // 📍 ดึงตำแหน่ง Rider
+          final riderLoc = data['riderLocation'] as GeoPoint?;
+          if (riderLoc != null) {
+            newRiderLocations[doc.id] = LatLng(
+              riderLoc.latitude,
+              riderLoc.longitude,
             );
-            updatedLocations[doc.id] = riderLatLng; // ใช้ deliveryId เป็น Key
-            log("[TrackingMap] Rider for ${doc.id} at: $riderLatLng");
-          } else {
-            log("[TrackingMap] Rider location not found for ${doc.id}");
+          }
+
+          // 🏠 ดึงตำแหน่งผู้รับ (ใช้ของงานแรก)
+          if (receiverLatLng == null && data['receiverAddress'] != null) {
+            final recv = data['receiverAddress'] as Map<String, dynamic>;
+            final lat = (recv['lat'] as num?)?.toDouble();
+            final lng = (recv['lng'] as num?)?.toDouble();
+            if (lat != null && lng != null) {
+              receiverLatLng = LatLng(lat, lng);
+            }
           }
         }
 
         if (mounted) {
           setState(() {
-            _riderLocations = updatedLocations;
+            _riderLocations = newRiderLocations;
+            _receiverLocation = receiverLatLng;
           });
 
-          // ย้ายแผนที่ไปหา Rider คนแรกที่เจอ (ถ้ายังไม่เคยแสดง Rider มาก่อน)
-          if (shouldMoveMap && updatedLocations.isNotEmpty) {
-            final firstRiderLocation = updatedLocations.values.first;
-            _mapController.move(firstRiderLocation, 15.0); // ซูมเข้าไปใกล้ขึ้น
+          // ซูมกล้องครั้งแรกเมื่อมีข้อมูล
+          if (!_hasMovedOnce && newRiderLocations.isNotEmpty) {
+            _mapController.move(newRiderLocations.values.first, 14.5);
+            _hasMovedOnce = true;
           }
         }
       },
-      onError: (error) {
-        log("[TrackingMap] Error listening to deliveries: $error");
-        if (mounted) {
-          setState(() => _riderLocations = {}); // เคลียร์ตำแหน่งถ้า error
-        }
+      onError: (e) {
+        log('[TrackingMap] error: $e');
       },
     );
+
     log(
-      "[TrackingMap] Started listening for deliveries to ${widget.receiverPhone}",
+      '[TrackingMap] Listening deliveries for receiver: ${widget.receiverPhone}',
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // สร้าง Markers
     final markers = <Marker>[
-      // Marker สำหรับ Rider แต่ละคน
+      // 🛵 Marker สำหรับ Rider แต่ละคน
       ..._riderLocations.entries.map((entry) {
-        final deliveryId = entry.key;
-        final position = entry.value;
         return Marker(
-          width: 40.0,
-          height: 40.0,
-          point: position,
+          width: 40,
+          height: 40,
+          point: entry.value,
           child: Tooltip(
-            message:
-                'Rider ส่งงาน $deliveryId', // อาจจะแสดงชื่อ Rider หรือข้อมูลอื่น ๆ
+            message: 'Rider จากงาน ${entry.key.substring(0, 6)}',
             child: Image.asset(
               'assets/images/motorcycle_icon.png',
-            ), // ใช้ไอคอนมอเตอร์ไซค์
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.two_wheeler, size: 30, color: Colors.blue),
+            ),
           ),
         );
       }),
 
-      // Optional: Marker ตำแหน่งบ้านของผู้ใช้
-      if (_userHomeLocation != null)
+      // 🏠 Marker ผู้รับพัสดุ
+      if (_receiverLocation != null)
         Marker(
-          width: 80.0,
-          height: 80.0,
-          point: _userHomeLocation!,
-          child: Tooltip(
-            message: "ตำแหน่งของคุณ",
-            child: const Icon(Icons.home, color: Colors.green, size: 40),
+          width: 80,
+          height: 80,
+          point: _receiverLocation!,
+          child: const Tooltip(
+            message: "ที่อยู่ของคุณ",
+            child: Icon(Icons.home, color: Colors.green, size: 40),
+          ),
+        ),
+    ];
+
+    // ✅ เส้นเชื่อมแต่ละ Rider → ผู้รับ (optional)
+    final polylines = <Polyline>[
+      if (_receiverLocation != null)
+        ..._riderLocations.values.map(
+          (pos) => Polyline(
+            points: [pos, _receiverLocation!],
+            strokeWidth: 4,
+            color: Colors.orangeAccent,
           ),
         ),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ติดตามตำแหน่ง Rider')),
+      appBar: AppBar(title: const Text('ติดตาม Rider ที่กำลังมาหาคุณ')),
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter:
-              _userHomeLocation ?? _initialCenter, // เริ่มที่บ้าน ถ้ามี
+          initialCenter: _receiverLocation ?? _initialCenter,
           initialZoom: _initialZoom,
         ),
         children: [
           TileLayer(
-            urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            urlTemplate:
+                'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=YOUR_THUNDERFOREST_API_KEY',
+            userAgentPackageName: 'com.yourcompany.deliveryapp',
           ),
+          RichAttributionWidget(
+            attributions: const [
+              TextSourceAttribution(
+                'Maps © Thunderforest, Data © OpenStreetMap contributors',
+              ),
+            ],
+            showFlutterMapAttribution: false,
+          ),
+          PolylineLayer(polylines: polylines),
           MarkerLayer(markers: markers),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        // ปุ่มกลับมาตำแหน่งเริ่มต้น / บ้าน
-        onPressed: () {
-          _mapController.move(
-            _userHomeLocation ?? _initialCenter,
-            _initialZoom,
-          );
-        },
-        tooltip: 'กลับไปตำแหน่งเริ่มต้น',
-        child: const Icon(Icons.my_location), // หรือ Icons.home
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_riderLocations.isNotEmpty)
+            FloatingActionButton.extended(
+              heroTag: 'fitAll',
+              onPressed: _fitAllMarkers,
+              label: const Text('แสดงทุก Rider'),
+              icon: const Icon(Icons.group),
+            ),
+          const SizedBox(height: 8),
+          if (_receiverLocation != null)
+            FloatingActionButton.extended(
+              heroTag: 'toReceiver',
+              onPressed: () => _mapController.move(_receiverLocation!, 15.0),
+              label: const Text('ไปยังบ้านของคุณ'),
+              icon: const Icon(Icons.home),
+            ),
+        ],
       ),
     );
+  }
+
+  /// ปรับกล้องให้เห็นทุก Rider + บ้านพร้อมกัน
+  void _fitAllMarkers() {
+    if (_riderLocations.isEmpty && _receiverLocation == null) return;
+
+    final allPoints = [
+      ..._riderLocations.values,
+      if (_receiverLocation != null) _receiverLocation!,
+    ];
+
+    // คำนวณขอบเขต (bounds)
+    final latitudes = allPoints.map((p) => p.latitude);
+    final longitudes = allPoints.map((p) => p.longitude);
+    final center = LatLng(
+      (latitudes.reduce((a, b) => a + b) / allPoints.length),
+      (longitudes.reduce((a, b) => a + b) / allPoints.length),
+    );
+    _mapController.move(center, 12.5);
   }
 }
