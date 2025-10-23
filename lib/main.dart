@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'pages/home.dart';
 import 'pages/login.dart';
 import 'pages/register.dart';
+import 'pages/rider_detail_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,9 @@ class MyApp extends StatelessWidget {
         '/receive': (ctx) => const ReceivePage(), // หน้า รับพัสดุ
         '/trackingMap': (ctx) =>
             const TrackingMapPage(receiverPhone: 'demoPhone'),
+        '/riderDetail': (ctx) => RiderDetailPage(
+          riderId: ModalRoute.of(ctx)!.settings.arguments as String,
+        ), // หน้าแสดงรายละเอียด Rider
       },
     );
   }
