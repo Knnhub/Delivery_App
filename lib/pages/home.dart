@@ -15,7 +15,6 @@ class HomePage extends StatelessWidget {
           return Column(
             children: [
               SizedBox(height: screenHeight * 0.15),
-
               // รูป (วางกลางจอ)
               Center(
                 child: Container(
@@ -23,9 +22,11 @@ class HomePage extends StatelessWidget {
                   height: screenWidth * 0.5,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white, // placeholder background
+                    // color: Color.fromARGB(255, 78, 70, 70), // placeholder background
                     image: DecorationImage(
-                      image: AssetImage('assets/images/chatgpt_image.png'),
+                      // --- แก้ไข path รูปภาพตรงนี้ ---
+                      image: AssetImage('assets/images/welcome.jpg'),
+                      // ---------------------------
                       fit: BoxFit.cover,
                     ),
                   ),

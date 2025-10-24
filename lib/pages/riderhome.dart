@@ -1,4 +1,4 @@
-// 🎯 ไฟล์: lib/pages/riderhome_page.dart (ฉบับเต็ม - อัปเดตตามระยะทาง 10 เมตร)
+// 🎯 ไฟล์: lib/pages/riderhome_page.dart (ฉบับเต็ม - อัปเดตตามระยะทาง 10 เมตร + ปรับสี)
 
 import 'dart:async';
 import 'dart:developer';
@@ -12,18 +12,24 @@ import 'package:latlong2/latlong.dart';
 
 import 'ridermap.dart'; // หน้าดูแผนที่ของงานที่รับแล้ว (มีอยู่เดิมในโปรเจกต์)
 // Import หน้าอื่นๆ ที่ใช้ใน pages list (สร้างไฟล์เหล่านี้ถ้ายังไม่มี)
-// import 'rider_history_page.dart';
-// import 'parcel_detail_page.dart';
+// (ตรวจสอบว่าไฟล์ rider_history_page.dart และ parcel_detail_page.dart มีอยู่จริง)
+// (สมมติว่าไฟล์เหล่านี้ถูก import มาแล้ว หรือจะย้ายคลาสมาไว้ในไฟล์นี้ก็ได้)
+// import 'rider_history_page.dart'; // (คลาส RiderHistoryPage อยู่ในไฟล์นี้แล้ว)
+// import 'parcel_detail_page.dart'; // (คลาส ParcelDetailPage อยู่ในไฟล์นี้แล้ว)
+
+// --- ✨ สี Theme ที่จะใช้ (สีม่วง) ---
+const Color primaryColor = Color(0xFF8C78E8);
+const Color backgroundColor = Color(0xFFE5E0FA);
+const Color secondaryTextColor = Color(0xFFE9D5FF);
+// --- จบสี Theme ---
 
 // -----------------------------
 // Utilities (ควรแยกไปไฟล์ใหม่ เช่น lib/utils/location_utils.dart)
 // -----------------------------
 Future<bool> ensureLocationPermission() async {
-  // --- ขอ Permission และเช็ค Service ---
   bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
   if (!serviceEnabled) {
     log('[ensurePermission] Location service disabled.');
-    // ควรแสดง SnackBar หรือ Dialog แจ้งผู้ใช้ให้เปิด GPS
     return false;
   }
   LocationPermission permission = await Geolocator.checkPermission();
@@ -32,13 +38,11 @@ Future<bool> ensureLocationPermission() async {
     permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied) {
       log('[ensurePermission] Permission denied again.');
-      // ควรแสดง SnackBar แจ้งว่าไม่ได้รับอนุญาต
       return false;
     }
   }
   if (permission == LocationPermission.deniedForever) {
     log('[ensurePermission] Permission denied forever.');
-    // ควรแสดง Dialog แนะนำให้ไปเปิดใน Settings ของแอป
     return false;
   }
   log('[ensurePermission] Location permission granted.');
@@ -65,7 +69,7 @@ String calculateDistanceText(LatLng? start, LatLng? end) {
 }
 
 // -----------------------------
-// Utilities (ควรแยกไปไฟล์ใหม่ เช่น lib/utils/ui_utils.dart)
+// Utilities (ควรแยกไปไฟล์ใหม่ เช่น lib/utils/ui_utils.dart) - ปรับสีเขียวเป็นสีม่วง
 // -----------------------------
 Color statusColor(String status) {
   switch (status) {
@@ -74,9 +78,10 @@ Color statusColor(String status) {
     case 'assigned':
       return Colors.orange.shade700;
     case 'picked':
-      return Colors.purple.shade600;
+      return Colors.purple.shade600; // อาจจะใช้สีม่วงเข้มกว่านี้
     case 'delivered':
-      return Colors.green.shade700;
+      // return Colors.green.shade700; // <<< เดิม
+      return primaryColor; // <<< เปลี่ยนเป็นสีม่วงหลัก
     case 'canceled':
       return Colors.red.shade700;
     default:
@@ -93,7 +98,8 @@ Color statusBackgroundColor(String status) {
     case 'picked':
       return Colors.purple.shade50;
     case 'delivered':
-      return Colors.green.shade50;
+      // return Colors.green.shade50; // <<< เดิม
+      return primaryColor.withOpacity(0.1); // <<< เปลี่ยนเป็นสีม่วงอ่อนๆ
     case 'canceled':
       return Colors.red.shade50;
     default:
@@ -131,31 +137,29 @@ class _RiderhomePageState extends State<RiderhomePage> {
     log('[RiderHome] initState');
   }
 
-  // ใช้ didChangeDependencies เพื่อรับ Arguments จาก Route
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     log('[RiderHome] didChangeDependencies');
-    // ดึง phone แค่ครั้งแรกที่ Widget ถูกสร้าง หรือ Dependencies เปลี่ยน
     if (phone == null) {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is String && args.isNotEmpty) {
-        // เช็ค notEmpty เพิ่ม
         phone = args;
         log('[RiderHome] Received phone: $phone');
-        _checkForExistingActiveJob(); // ตรวจสอบงานค้างเมื่อเปิดแอป
+        _checkForExistingActiveJob();
       } else {
         log('[RiderHome] Did not receive a valid phone number.');
-        // ควรจัดการกรณีไม่ได้รับ phone เช่น แสดงข้อผิดพลาด หรือเด้งกลับไป Login
-        // WidgetsBinding.instance.addPostFrameCallback((_) {
-        //   if (mounted) {
-        //     ScaffoldMessenger.of(context).showSnackBar(
-        //       const SnackBar(content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูล Rider')),
-        //     );
-        //     // อาจจะ Navigate กลับไป Login
-        //     // Navigator.of(context).pushReplacementNamed('/login');
-        //   }
-        // });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('เกิดข้อผิดพลาด: ไม่พบข้อมูล Rider'),
+              ),
+            );
+            // Consider navigating back to login
+            // Navigator.of(context).pushReplacementNamed('/login');
+          }
+        });
       }
     }
   }
@@ -163,11 +167,10 @@ class _RiderhomePageState extends State<RiderhomePage> {
   @override
   void dispose() {
     log('[RiderHome] dispose');
-    _stopLocationUpdates(); // หยุด Stream และ Listener ทั้งหมดเมื่อ Widget หายไป
+    _stopLocationUpdates();
     super.dispose();
   }
 
-  // ตรวจสอบว่ามีงานที่กำลังทำค้างอยู่หรือไม่เมื่อเปิดแอป
   Future<void> _checkForExistingActiveJob() async {
     log('[RiderHome] Checking for existing active job...');
     if (phone == null || phone!.isEmpty) {
@@ -177,19 +180,17 @@ class _RiderhomePageState extends State<RiderhomePage> {
     try {
       final query = FirebaseFirestore.instance
           .collection('deliveries')
-          .where('riderId', isEqualTo: phone) // ใช้ riderId ในการ query
-          .where('status', whereIn: ['assigned', 'picked']) // สถานะที่กำลังทำ
-          .limit(1); // เอาแค่งานเดียว (สมมติว่า Rider ทำได้ทีละงาน)
+          .where('riderId', isEqualTo: phone)
+          .where('status', whereIn: ['assigned', 'picked'])
+          .limit(1);
 
       final snapshot = await query.get();
 
-      // เช็ค mounted ก่อนเรียก setState หรือ _startLocationUpdates
       if (mounted && snapshot.docs.isNotEmpty) {
         final activeDoc = snapshot.docs.first;
         log(
           '[RiderHome] Found existing active job on startup: ${activeDoc.id}',
         );
-        // เริ่มอัปเดตตำแหน่งสำหรับงานที่ค้างอยู่
         _startLocationUpdates(activeDoc.id);
       } else {
         log('[RiderHome] No existing active job found on startup.');
@@ -204,32 +205,27 @@ class _RiderhomePageState extends State<RiderhomePage> {
     }
   }
 
-  // เริ่มกระบวนการอัปเดตตำแหน่ง (เรียกจาก _checkForExistingActiveJob หรือ NewDeliveriesPage)
   void _startLocationUpdates(String deliveryId) {
     log(
       '[RiderHome] >>> Request START location updates (distance based) for: $deliveryId',
     );
-    // ป้องกันการเริ่มซ้ำซ้อนสำหรับงานเดิม
     if (_isLocationServiceRunning && _activeDeliveryId == deliveryId) {
       log('[RiderHome] Location stream already running for this delivery.');
       return;
     }
 
-    // หยุด Stream/Listener เก่าก่อนเสมอ (เผื่อกรณีกดรับงานใหม่ซ้อน)
     _stopLocationUpdates();
 
-    _activeDeliveryId = deliveryId; // ตั้ง ID งานปัจจุบัน
-    _isLocationServiceRunning = true; // ตั้งสถานะ Service เป็นทำงาน
-    _lastReportedPosition = null; // รีเซ็ตตำแหน่งล่าสุดที่ส่ง
+    _activeDeliveryId = deliveryId;
+    _isLocationServiceRunning = true;
+    _lastReportedPosition = null;
 
-    // 1. ขอ Permission ตำแหน่ง
     ensureLocationPermission().then((granted) {
-      // เช็ค permission และสถานะ service อีกครั้ง (สำคัญ!)
       if (!granted || !_isLocationServiceRunning || !mounted) {
         log(
           '[RiderHome] Permission denied or service stopped before starting stream.',
         );
-        _stopLocationUpdates(); // หยุด service ถ้าไม่ได้ permission
+        _stopLocationUpdates();
         if (mounted && !granted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง')),
@@ -239,26 +235,18 @@ class _RiderhomePageState extends State<RiderhomePage> {
       }
 
       log('[RiderHome] Permission granted. Starting location stream...');
-      // 2. เริ่มฟังสถานะของงานปัจจุบัน (เพื่อหยุดเมื่อจบงาน)
       _listenToCurrentJobStatus(deliveryId);
 
-      // --- 3. เริ่มฟัง Location Stream ---
       _positionStreamSubscription =
           Geolocator.getPositionStream(
-            // ตั้งค่า Stream
             locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.high, // ขอความแม่นยำสูง
-              distanceFilter: 10, // ✅ อัปเดตทุกๆ 10 เมตร
-              // สามารถเพิ่ม timeInterval ได้ถ้าต้องการจำกัดความถี่ เช่น
-              // timeInterval: Duration(seconds: 5), // อย่างน้อย 5 วินาทีต่อการอัปเดต (ถ้าเคลื่อนที่เร็วมาก)
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 10,
             ),
           ).listen(
-            // เริ่มรับข้อมูลจาก Stream
             (Position position) {
-              // Callback นี้จะทำงานเมื่อตำแหน่งเปลี่ยนไปตาม distanceFilter
               log('[RiderHome] Position stream update received.');
               if (mounted) {
-                // เช็คก่อนเรียก _handlePositionUpdate
                 _handlePositionUpdate(position);
               }
             },
@@ -268,14 +256,11 @@ class _RiderhomePageState extends State<RiderhomePage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('ข้อผิดพลาด Stream ตำแหน่ง: $error')),
                 );
-                // อาจจะลองหยุดแล้วเริ่มใหม่ หรือแจ้งให้ Rider ตรวจสอบ GPS
-                _stopLocationUpdates(); // หยุดไปเลยเพื่อความปลอดภัย
+                _stopLocationUpdates();
               }
             },
             onDone: () {
-              // Stream ถูกปิด (อาจเกิดจากระบบ หรือ permission ถูกถอน)
               log('[RiderHome] Position stream is done.');
-              // ถ้า service ควรยังทำงานอยู่ (เช่น งานยังไม่จบ) อาจต้องแจ้งเตือนหรือลองเริ่มใหม่
               if (_isLocationServiceRunning && mounted) {
                 log(
                   '[RiderHome] Position stream closed unexpectedly. Stopping service.',
@@ -290,33 +275,27 @@ class _RiderhomePageState extends State<RiderhomePage> {
                 _stopLocationUpdates();
               }
             },
-            cancelOnError: true, // หยุด Stream ทันทีถ้าเกิด Error
+            cancelOnError: true,
           );
-      // --- จบส่วน Location Stream ---
 
       log('[RiderHome] Location stream listener started for $deliveryId.');
-
-      // 4. (Optional) ดึงตำแหน่งปัจจุบันครั้งแรกทันที (เพื่อให้มีข้อมูลเร็วขึ้น)
       _getInitialPositionAndUpdate();
     });
   }
 
-  // (Optional) ดึงตำแหน่งปัจจุบันครั้งแรกเพื่อแสดงผลเร็วขึ้น และส่งให้ Firestore
   Future<void> _getInitialPositionAndUpdate() async {
     log('[RiderHome] Getting initial position...');
     try {
-      // ขอ Permission อีกครั้ง เผื่อยังไม่ได้ให้
       bool permissionGranted = await ensureLocationPermission();
       if (!permissionGranted || !_isLocationServiceRunning || !mounted) return;
 
       Position initialPosition = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 20), // เพิ่ม timeout ป้องกันค้างนาน
+        timeLimit: const Duration(seconds: 20),
       );
       log(
         '[RiderHome] Got initial position: ${initialPosition.latitude}, ${initialPosition.longitude}',
       );
-      // เช็คว่า service ยังควรทำงานอยู่หรือไม่ ก่อนเรียก handle
       if (_isLocationServiceRunning && mounted) {
         _handlePositionUpdate(initialPosition, isInitial: true);
       }
@@ -326,20 +305,15 @@ class _RiderhomePageState extends State<RiderhomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('ไม่สามารถดึงตำแหน่งเริ่มต้นได้: $e')),
         );
-        // ถ้าดึงตำแหน่งแรกไม่ได้ อาจจะยังให้ Stream ทำงานต่อไป หรือจะหยุดเลยก็ได้
-        // _stopLocationUpdates();
       }
     }
   }
 
-  // ฟังก์ชันจัดการเมื่อได้รับตำแหน่งใหม่จาก Stream หรือการดึงครั้งแรก
   void _handlePositionUpdate(Position position, {bool isInitial = false}) {
-    // เช็คสถานะ Service และ ID งาน อีกครั้ง (สำคัญมาก!)
     if (!_isLocationServiceRunning || _activeDeliveryId == null || !mounted) {
       log(
         '[RiderHome] Received position update but conditions not met (service stopped, no active job, or not mounted).',
       );
-      // ถ้า service ไม่ควรทำงาน ควรหยุด stream (อาจทำใน _stopLocationUpdates)
       return;
     }
 
@@ -348,10 +322,7 @@ class _RiderhomePageState extends State<RiderhomePage> {
       '[RiderHome] ${isInitial ? "Initial" : "Stream"} Position Update Handled: Lat=${currentLatLng.latitude}, Lng=${currentLatLng.longitude}, Acc=${position.accuracy}m',
     );
 
-    // ป้องกันการส่งตำแหน่งซ้ำ ถ้า Lat/Lng ไม่เปลี่ยนเลย (ป้องกัน Firestore write โดยไม่จำเป็น)
-    // อาจปรับปรุงให้เช็คระยะทางน้อยๆ แทนการเช็คค่าเป๊ะๆ
-    const double minDistanceThreshold =
-        1.0; // ต้องห่างจากจุดเดิม > 1 เมตร ถึงจะส่ง
+    const double minDistanceThreshold = 1.0;
     if (!isInitial && _lastReportedPosition != null) {
       double distance = const Distance().as(
         LengthUnit.Meter,
@@ -366,58 +337,45 @@ class _RiderhomePageState extends State<RiderhomePage> {
       }
     }
 
-    // --- อัปเดต Firestore ---
     FirebaseFirestore.instance
         .collection('deliveries')
-        .doc(_activeDeliveryId!) // ใช้ ID งานปัจจุบัน
+        .doc(_activeDeliveryId!)
         .update({
           'riderLocation': GeoPoint(
             currentLatLng.latitude,
             currentLatLng.longitude,
-          ), // ตำแหน่ง GeoPoint
-          'riderLocationTimestamp':
-              FieldValue.serverTimestamp(), // เวลาที่อัปเดต (Server time)
-          'riderLocationAccuracy': position.accuracy, // ความแม่นยำ (Optional)
+          ),
+          'riderLocationTimestamp': FieldValue.serverTimestamp(),
+          'riderLocationAccuracy': position.accuracy,
         })
         .then((_) {
           log(
             '[RiderHome] Firestore location updated successfully for $_activeDeliveryId.',
           );
-          // บันทึกตำแหน่งล่าสุดที่ส่งสำเร็จ
           _lastReportedPosition = currentLatLng;
         })
         .catchError((error) {
-          // จัดการ Error ที่อาจเกิดขึ้นตอน Update Firestore
           log(
             '[RiderHome] Error updating Firestore location for $_activeDeliveryId: $error',
           );
-          if (mounted) {
-            // อาจจะแสดง SnackBar แต่ระวังแสดงถี่ไปถ้า Network ไม่ดี
-            // ScaffoldMessenger.of(context).showSnackBar(
-            //    SnackBar(content: Text('เกิดข้อผิดพลาดในการอัปเดตตำแหน่ง Firestore: $error'), duration: Duration(seconds: 2))
-            // );
-          }
+          // Consider minimal feedback to avoid spamming the user
         });
-    // --- จบการอัปเดต Firestore ---
   }
 
-  // ฟังสถานะของงานปัจจุบัน (เพื่อหยุด Stream เมื่อจบงาน)
   void _listenToCurrentJobStatus(String deliveryId) {
-    _currentJobStatusSubscription?.cancel(); // ยกเลิก Listener เก่า
+    _currentJobStatusSubscription?.cancel();
     log('[RiderHome] Starting to listen job status for $deliveryId');
     _currentJobStatusSubscription = FirebaseFirestore.instance
         .collection('deliveries')
-        .doc(deliveryId) // ฟัง Document ของงานนี้
-        .snapshots() // รับการเปลี่ยนแปลงแบบ Realtime
+        .doc(deliveryId)
+        .snapshots()
         .listen(
           (DocumentSnapshot snapshot) {
-            // ใช้ DocumentSnapshot
-            // เช็คก่อนว่า Widget ยังอยู่ และ Service ควรทำงาน
             if (!mounted || !_isLocationServiceRunning) {
               log(
                 '[RiderHome] Job Status Listener: Not mounted or service stopped. Stopping updates.',
               );
-              _stopLocationUpdates(); // หยุดถ้า Widget หายไป หรือ Service ถูกสั่งหยุด
+              _stopLocationUpdates();
               return;
             }
             if (!snapshot.exists) {
@@ -428,25 +386,23 @@ class _RiderhomePageState extends State<RiderhomePage> {
               return;
             }
 
-            final data = snapshot.data() as Map<String, dynamic>?; // Cast data
+            final data = snapshot.data() as Map<String, dynamic>?;
             final status = data?['status'] as String?;
             log(
               '[RiderHome] Job Status Listener: Current job ($deliveryId) status update: $status',
             );
 
-            // ถ้าสถานะไม่ใช่งานที่กำลังทำ ('assigned' หรือ 'picked') ให้หยุด Location Stream
             if (status != 'assigned' && status != 'picked') {
               log(
                 '[RiderHome] Job Status Listener: Job status changed to $status. Stopping location updates.',
               );
-              _stopLocationUpdates(); // เรียกฟังก์ชันหยุดการทำงานทั้งหมด
+              _stopLocationUpdates();
             }
           },
           onError: (error) {
             log(
               '[RiderHome] Job Status Listener: Error listening to current job status ($deliveryId): $error',
             );
-            // หยุด Location Stream ถ้าเกิด Error ในการฟังสถานะ
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -458,19 +414,16 @@ class _RiderhomePageState extends State<RiderhomePage> {
           },
           onDone: () {
             log('[RiderHome] Job status stream for $deliveryId is done.');
-            // หยุด Location Stream ถ้า Listener สถานะจบการทำงาน (อาจเกิดเมื่อ Document ถูกลบ)
             if (mounted && _isLocationServiceRunning) {
               _stopLocationUpdates();
             }
           },
-          cancelOnError: true, // หยุด Listener ถ้ามี Error
+          cancelOnError: true,
         );
   }
 
-  // หยุดกระบวนการอัปเดตตำแหน่งทั้งหมด (Location Stream และ Status Listener)
   void _stopLocationUpdates() {
-    // เช็คว่ามีอะไรต้องหยุดบ้าง เพื่อป้องกันการเรียก cancel บน null
-    bool wasRunning = _isLocationServiceRunning; // เก็บสถานะก่อนหยุด
+    bool wasRunning = _isLocationServiceRunning;
     if (wasRunning ||
         _positionStreamSubscription != null ||
         _currentJobStatusSubscription != null) {
@@ -478,19 +431,16 @@ class _RiderhomePageState extends State<RiderhomePage> {
         '[RiderHome] >>> Stopping location updates for $_activeDeliveryId...',
       );
 
-      // 1. หยุด Location Stream
       _positionStreamSubscription?.cancel();
       _positionStreamSubscription = null;
       log('[RiderHome] Position stream subscription canceled.');
 
-      // 2. หยุด Listener สถานะงาน
       _currentJobStatusSubscription?.cancel();
       _currentJobStatusSubscription = null;
       log('[RiderHome] Job status subscription canceled.');
 
-      // 3. รีเซ็ตค่า State ที่เกี่ยวข้อง
       _activeDeliveryId = null;
-      _isLocationServiceRunning = false; // สำคัญ: ตั้งค่านี้เป็น false
+      _isLocationServiceRunning = false;
       _lastReportedPosition = null;
 
       log('[RiderHome] Location updates stopped completely.');
@@ -499,14 +449,8 @@ class _RiderhomePageState extends State<RiderhomePage> {
     }
   }
 
-  // --- ฟังก์ชัน Utilities เดิม ---
-  // Future<bool> ensureLocationPermission() async { /* ... ย้ายไปข้างบนแล้ว ... */ }
-
-  // --- ฟังก์ชันจัดการการสลับ Tab ---
   void _onItemTapped(int index) {
-    // ไม่มีการ Logout ที่นี่แล้ว Logic อยู่ใน ProfilePage
     if (_selectedIndex != index) {
-      // เปลี่ยน State ต่อเมื่อ index เปลี่ยนจริง
       setState(() {
         _selectedIndex = index;
       });
@@ -515,37 +459,32 @@ class _RiderhomePageState extends State<RiderhomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // สร้าง Callback function ที่จะส่งให้ NewDeliveriesPage
-    // ใช้ Function Type ที่ชัดเจน
     void Function(String) startUpdatesCallback = _startLocationUpdates;
 
-    // รายการหน้าต่างๆ ที่จะแสดงใน BottomNavigationBar
-    // ใช้ Widget จริง แทน Placeholder
     final pages = <Widget>[
-      NewDeliveriesPage(
-        phone: phone,
-        onAssignSuccess: startUpdatesCallback,
-      ), // หน้าแรก (รายการใหม่)
-      AssignedDeliveriesPage(phone: phone), // หน้าสอง (งานของฉัน)
-      RiderHistoryPage(
-        phone: phone,
-      ), // หน้าสาม (ประวัติ) - ต้องสร้าง Widget นี้
-      ProfilePage(currentUserPhone: phone, isRider: true), // หน้าสี่ (โปรไฟล์)
+      NewDeliveriesPage(phone: phone, onAssignSuccess: startUpdatesCallback),
+      AssignedDeliveriesPage(phone: phone),
+      RiderHistoryPage(phone: phone),
+      ProfilePage(currentUserPhone: phone, isRider: true),
     ];
-    // รายการชื่อ Title สำหรับ AppBar (Optional)
     final titles = ['รายการใหม่', 'งานของฉัน', 'ประวัติ', 'โปรไฟล์'];
 
     log('[RiderHome] Building UI with selectedIndex: $_selectedIndex');
 
     return Scaffold(
+      backgroundColor: backgroundColor, // <<< ตั้งสีพื้นหลัง Scaffold
       appBar: AppBar(
-        title: Text(titles[_selectedIndex]), // แสดง Title ตาม Tab ที่เลือก
-        automaticallyImplyLeading: false, // ไม่มีปุ่ม Back อัตโนมัติ
-        centerTitle: true, // จัด Title ไว้ตรงกลาง (Optional)
+        title: Text(
+          titles[_selectedIndex],
+          style: TextStyle(color: Colors.white), // <<< สีขาว
+        ),
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        backgroundColor: primaryColor, // <<< สีม่วงหลัก
+        foregroundColor: Colors.white, // <<< สีขาวสำหรับไอคอน (ถ้ามี)
+        elevation: 0, // <<< เอาเงาออก
       ),
-      // ใช้ IndexedStack เพื่อรักษา State ของแต่ละหน้าเมื่อสลับ Tab
       body: IndexedStack(index: _selectedIndex, children: pages),
-      // Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
         items: const [
           BottomNavigationBarItem(
@@ -569,15 +508,16 @@ class _RiderhomePageState extends State<RiderhomePage> {
             label: 'โปรไฟล์',
           ),
         ],
-        currentIndex: _selectedIndex, // Tab ที่เลือกปัจจุบัน
-        onTap: _onItemTapped, // ฟังก์ชันที่จะเรียกเมื่อกด Tab
-        type: BottomNavigationBarType.fixed, // ให้ Label แสดงตลอดเวลา
-        selectedItemColor: Theme.of(
-          context,
-        ).primaryColor, // สีไอคอน/Label ที่เลือก
-        unselectedItemColor:
-            Colors.grey.shade600, // สีไอคอน/Label ที่ไม่ได้เลือก
-        showUnselectedLabels: true, // แสดง Label ของ Tab ที่ไม่ได้เลือกด้วย
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: primaryColor, // <<< สีพื้นหลังม่วง
+        selectedItemColor: Colors.white, // <<< สีไอคอน/Label ที่เลือก (สีขาว)
+        unselectedItemColor: Colors.white.withOpacity(
+          0.7,
+        ), // <<< สีไอคอน/Label ที่ไม่ได้เลือก (ขาวจางๆ)
+        showUnselectedLabels: true,
+        elevation: 0, // <<< เอาเงาออก
       ),
     );
   }
@@ -592,7 +532,6 @@ class _RiderhomePageState extends State<RiderhomePage> {
 // -----------------------------
 class NewDeliveriesPage extends StatefulWidget {
   final String? phone; // Rider's phone (ID)
-  // Callback function to notify RiderhomePage when an order is assigned
   final void Function(String deliveryId)? onAssignSuccess;
 
   const NewDeliveriesPage({super.key, this.phone, this.onAssignSuccess});
@@ -602,9 +541,7 @@ class NewDeliveriesPage extends StatefulWidget {
 }
 
 class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
-  // Function to assign the order to the current rider
   Future<void> _assignOrder(String deliveryId) async {
-    // Check if rider phone is available
     if (widget.phone == null || widget.phone!.isEmpty) {
       log('[NewDeliveries] Cannot assign order: Rider phone is missing.');
       if (mounted) {
@@ -618,28 +555,22 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
       '[NewDeliveries] Attempting to assign order $deliveryId to rider ${widget.phone}',
     );
     try {
-      // Update the delivery document in Firestore
       await FirebaseFirestore.instance
           .collection('deliveries')
           .doc(deliveryId)
           .update({
-            'status': 'assigned', // Update status
-            'riderId': widget.phone, // Set riderId
-            'assignedAt':
-                FieldValue.serverTimestamp(), // Record assignment time
+            'status': 'assigned',
+            'riderId': widget.phone,
+            'assignedAt': FieldValue.serverTimestamp(),
           });
 
       log('[NewDeliveries] Order $deliveryId assigned successfully.');
-      // --- ✨ Call the callback function to start location updates ✨ ---
       widget.onAssignSuccess?.call(deliveryId);
-      // ---------------------------------------------------------------
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('รับออเดอร์เรียบร้อยแล้ว')),
         );
-        // Optional: Navigate to 'AssignedDeliveriesPage' or Map page automatically
-        // (Consider user experience - maybe stay on the list is better)
       }
     } catch (e) {
       log('[NewDeliveries] Error assigning order $deliveryId: $e');
@@ -654,25 +585,24 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
   @override
   Widget build(BuildContext context) {
     log('[NewDeliveries] Building UI.');
-    // Query for deliveries with 'created' status (and optionally riderId == null)
     final query = FirebaseFirestore.instance
         .collection('deliveries')
         .where('status', isEqualTo: 'created')
-        // .where('riderId', isNull: true) // You might want this filter
-        .orderBy('createdAt', descending: true); // Show newest first
+        .orderBy('createdAt', descending: true);
 
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(), // Listen to real-time updates
+      stream: query.snapshots(),
       builder: (context, snapshot) {
-        // Handle loading state
         if (snapshot.connectionState == ConnectionState.waiting) {
           log('[NewDeliveries] Stream waiting...');
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            ),
+          );
         }
-        // Handle error state
         if (snapshot.hasError) {
           log('[NewDeliveries] Stream error: ${snapshot.error}');
-          // Specific check for missing index error
           if (snapshot.error.toString().contains('FAILED_PRECONDITION')) {
             return Center(
               child: Padding(
@@ -686,24 +616,18 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
           }
           return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
         }
-        // Handle no data state
-        // Use null-safe access ?.docs and default to empty list []
         final docs = snapshot.data?.docs ?? [];
         log('[NewDeliveries] Stream received data: ${docs.length} documents.');
         if (docs.isEmpty) {
           return const Center(child: Text('ยังไม่มีรายการพัสดุใหม่'));
         }
 
-        // Build the list if data exists
         return RefreshIndicator(
-          // Add pull-to-refresh
+          color: primaryColor,
+          backgroundColor: Colors.white,
           onRefresh: () async {
-            // Although StreamBuilder updates automatically, this gives user feedback
             log('[NewDeliveries] Refresh triggered.');
-            // You could potentially re-run the query or just wait for the stream
-            await Future.delayed(
-              const Duration(milliseconds: 500),
-            ); // Simulate refresh
+            await Future.delayed(const Duration(milliseconds: 500));
           },
           child: ListView.builder(
             itemCount: docs.length,
@@ -711,19 +635,16 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
               final doc = docs[index];
               final data = doc.data() as Map<String, dynamic>;
 
-              // --- Extract data safely ---
               final senderAddressMap =
                   data['senderAddress'] as Map<String, dynamic>? ?? {};
               final receiverAddressMap =
                   data['receiverAddress'] as Map<String, dynamic>? ?? {};
-
               final senderLat = (senderAddressMap['lat'] as num?)?.toDouble();
               final senderLng = (senderAddressMap['lng'] as num?)?.toDouble();
               final receiverLat = (receiverAddressMap['lat'] as num?)
                   ?.toDouble();
               final receiverLng = (receiverAddressMap['lng'] as num?)
                   ?.toDouble();
-
               final senderLatLng = (senderLat != null && senderLng != null)
                   ? LatLng(senderLat, senderLng)
                   : null;
@@ -735,40 +656,37 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
                 senderLatLng,
                 receiverLatLng,
               );
-
               final senderAddressText =
                   senderAddressMap['address'] as String? ?? 'N/A';
               final receiverAddressText =
                   receiverAddressMap['address'] as String? ?? 'N/A';
               final senderName = data['senderName'] as String? ?? 'N/A';
-              final senderId =
-                  data['senderId'] as String? ?? ''; // Phone number
+              final senderId = data['senderId'] as String? ?? '';
               final receiverName = data['receiverName'] as String? ?? 'N/A';
               final receiverPhone = data['receiverPhone'] as String? ?? '';
-              // --- End data extraction ---
 
               return Card(
+                color: Colors.white,
+                surfaceTintColor: Colors.white,
                 margin: const EdgeInsets.symmetric(
                   horizontal: 12.0,
                   vertical: 6.0,
                 ),
                 elevation: 1,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Sender Info Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Flexible(
-                            // Prevents overflow if name is long
                             child: Text(
-                              'ผู้ส่ง: $senderName ($senderId)',
+                              'ผู้ส่ง: $senderName (${senderId.isNotEmpty ? senderId : '-'})',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -779,26 +697,26 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
                             avatar: Icon(
                               Icons.route_outlined,
                               size: 16,
-                              color: Theme.of(context).primaryColor,
+                              color: primaryColor,
                             ),
                             label: Text(
                               distanceString,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Theme.of(context).primaryColor,
+                                color: primaryColor,
                               ),
                             ),
-                            backgroundColor: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.1),
+                            backgroundColor: primaryColor.withOpacity(0.1),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
                             ),
                             visualDensity: VisualDensity.compact,
+                            side: BorderSide.none,
                           ),
                         ],
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         'รับจาก: $senderAddressText',
                         style: TextStyle(
@@ -808,13 +726,17 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const Divider(height: 20, thickness: 0.5),
-                      // Receiver Info Row
+                      Divider(
+                        height: 24,
+                        thickness: 0.5,
+                        color: Colors.grey.shade300,
+                      ),
                       Text(
-                        'ผู้รับ: $receiverName ($receiverPhone)',
+                        'ผู้รับ: $receiverName (${receiverPhone.isNotEmpty ? receiverPhone : '-'})',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         'ส่งที่: $receiverAddressText',
                         style: TextStyle(
@@ -825,7 +747,6 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 16),
-                      // Action Buttons Row
                       Row(
                         children: [
                           Expanded(
@@ -844,7 +765,14 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
                                 );
                               },
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: Colors.grey.shade400),
+                                side: BorderSide(
+                                  color: primaryColor,
+                                ), // <<< สีขอบม่วง
+                                foregroundColor:
+                                    primaryColor, // <<< สีตัวอักษร/ไอคอนม่วง
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 10,
                                 ),
@@ -860,13 +788,17 @@ class _NewDeliveriesPageState extends State<NewDeliveriesPage> {
                               ),
                               label: const Text('รับงาน'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                foregroundColor: Colors.white,
+                                backgroundColor:
+                                    primaryColor, // <<< สีพื้นหลังม่วง
+                                foregroundColor:
+                                    Colors.white, // <<< สีตัวอักษร/ไอคอนขาว
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 10,
                                 ),
                               ),
-                              // Call _assignOrder when pressed
                               onPressed: () => _assignOrder(doc.id),
                             ),
                           ),
@@ -893,47 +825,41 @@ class AssignedDeliveriesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Check if Rider ID is available
     if (phone == null || phone!.isEmpty) {
       return const Center(child: Text('ไม่สามารถระบุตัวตนไรเดอร์ได้'));
     }
 
-    // Query for deliveries assigned to this rider and in progress
     final query = FirebaseFirestore.instance
         .collection('deliveries')
         .where('riderId', isEqualTo: phone)
-        .where('status', whereIn: ['assigned', 'picked']) // Only active jobs
-        .orderBy(
-          'assignedAt',
-          descending: true,
-        ); // Show recently assigned first
+        .where('status', whereIn: ['assigned', 'picked'])
+        .orderBy('assignedAt', descending: true);
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
-        // Handle loading state
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            ),
+          );
         }
-        // Handle error state
         if (snapshot.hasError) {
           log('[AssignedDeliveries] Stream error: ${snapshot.error}');
           return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
         }
-        // Handle no data state
         final deliveries = snapshot.data?.docs ?? [];
         if (deliveries.isEmpty) {
           return const Center(child: Text('คุณยังไม่มีงานที่กำลังดำเนินการ'));
         }
 
-        // Build the list
         return ListView.builder(
           itemCount: deliveries.length,
           itemBuilder: (context, index) {
             final delivery = deliveries[index];
             final data = delivery.data() as Map<String, dynamic>;
 
-            // Extract data safely
             final senderAddressMap =
                 data['senderAddress'] as Map<String, dynamic>? ?? {};
             final receiverAddressMap =
@@ -946,7 +872,6 @@ class AssignedDeliveriesPage extends StatelessWidget {
                 receiverAddressMap['address'] as String? ?? 'N/A';
             final status = data['status'] as String? ?? 'unknown';
 
-            // Calculate distance (optional)
             final senderLat = (senderAddressMap['lat'] as num?)?.toDouble();
             final senderLng = (senderAddressMap['lng'] as num?)?.toDouble();
             final receiverLat = (receiverAddressMap['lat'] as num?)?.toDouble();
@@ -963,20 +888,21 @@ class AssignedDeliveriesPage extends StatelessWidget {
             );
 
             return Card(
+              color: Colors.white,
+              surfaceTintColor: Colors.white,
               margin: const EdgeInsets.symmetric(
                 horizontal: 12.0,
                 vertical: 6.0,
               ),
               elevation: 1,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header Row with Status
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -987,17 +913,15 @@ class AssignedDeliveriesPage extends StatelessWidget {
                             color: Colors.grey.shade600,
                           ),
                         ),
-                        _StatusChipSmall(
-                          status: status,
-                        ), // Use a smaller status chip
+                        _StatusChipSmall(status: status),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Sender Info
                     Text(
                       'รับจาก: $senderName',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       senderAddressText,
                       style: TextStyle(
@@ -1005,12 +929,16 @@ class AssignedDeliveriesPage extends StatelessWidget {
                         fontSize: 13,
                       ),
                     ),
-                    const Divider(height: 20, thickness: 0.5),
-                    // Receiver Info
+                    Divider(
+                      height: 24,
+                      thickness: 0.5,
+                      color: Colors.grey.shade300,
+                    ),
                     Text(
                       'ส่งให้: $receiverName',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       receiverAddressText,
                       style: TextStyle(
@@ -1019,73 +947,92 @@ class AssignedDeliveriesPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Action Buttons Row (Wrap for responsiveness)
-                    Wrap(
-                      spacing: 8.0, // Horizontal space between buttons
-                      runSpacing: 8.0, // Vertical space if buttons wrap
-                      alignment: WrapAlignment.spaceBetween, // Distribute space
+                    Row(
                       children: [
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.info_outline, size: 18),
-                          label: const Text('รายละเอียด'),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ParcelDetailPage(
-                                  deliveryId: delivery.id,
-                                  data: data,
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: Colors.grey.shade700,
+                            ),
+                            label: Text(
+                              'รายละเอียด',
+                              style: TextStyle(color: Colors.grey.shade700),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ParcelDetailPage(
+                                    deliveryId: delivery.id,
+                                    data: data,
+                                  ),
                                 ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.grey.shade100,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey.shade400),
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 12,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                             ),
                           ),
                         ),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.map_outlined, size: 18),
-                          label: const Text('ดูแผนที่'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Colors.green, // Use green for map button
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 12,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                              Icons.map_outlined,
+                              size: 18,
+                              color: Colors.white,
                             ),
-                          ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RiderMapPage(
-                                  deliveryData: data,
-                                  deliveryId: delivery.id,
-                                ),
+                            label: const Text(
+                              'ดูแผนที่',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor, // <<< สีม่วง
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                            );
-                          },
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RiderMapPage(
+                                    deliveryData: data,
+                                    deliveryId: delivery.id,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                        // Optional: Add Distance Chip here if needed
+                        const SizedBox(width: 8),
                         Chip(
                           avatar: Icon(
                             Icons.route_outlined,
                             size: 16,
-                            color: Colors.blueGrey,
+                            color: Colors.grey.shade700, // <<< สีเทา
                           ),
                           label: Text(
                             distanceString,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.blueGrey,
+                              color: Colors.grey.shade700, // <<< สีเทา
                             ),
                           ),
-                          backgroundColor: Colors.blueGrey.withOpacity(0.1),
+                          backgroundColor:
+                              Colors.grey.shade100, // <<< สีพื้นหลังเทาอ่อน
+                          side: BorderSide(
+                            color: Colors.grey.shade300,
+                          ), // <<< สีขอบเทาอ่อน
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 2,
@@ -1106,10 +1053,10 @@ class AssignedDeliveriesPage extends StatelessWidget {
 } // End AssignedDeliveriesPage
 
 // -----------------------------
-// History (ควรสร้างไฟล์แยก lib/pages/rider_history_page.dart)
+// History (ปรับสี Icon และ Chip และ Card)
 // -----------------------------
 class RiderHistoryPage extends StatelessWidget {
-  final String? phone; // Rider's phone (ID)
+  final String? phone;
   const RiderHistoryPage({super.key, this.phone});
 
   @override
@@ -1118,25 +1065,21 @@ class RiderHistoryPage extends StatelessWidget {
       return const Center(child: Text('ไม่สามารถระบุตัวตนไรเดอร์ได้'));
     }
 
-    // Query for completed ('delivered') or 'canceled' deliveries by this rider
     final query = FirebaseFirestore.instance
         .collection('deliveries')
         .where('riderId', isEqualTo: phone)
-        .where(
-          'status',
-          whereIn: ['delivered', 'canceled'],
-        ) // Include canceled jobs
-        // Order by completion/cancellation time (use 'updatedAt' as a fallback)
-        .orderBy('deliveredAt', descending: true)
-    // You might need a composite index for this query (riderId, status, deliveredAt)
-    // Firestore will provide a link in the debug console if needed.
-    ;
+        .where('status', whereIn: ['delivered', 'canceled'])
+        .orderBy('updatedAt', descending: true);
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            ),
+          );
         }
         if (snapshot.hasError) {
           log('[RiderHistory] Stream error: ${snapshot.error}');
@@ -1158,31 +1101,21 @@ class RiderHistoryPage extends StatelessWidget {
           return const Center(child: Text('ยังไม่มีประวัติการส่ง'));
         }
 
-        return ListView.separated(
+        // --- ✨ เปลี่ยน ListView.separated เป็น ListView.builder + padding ---
+        return ListView.builder(
+          padding: const EdgeInsets.all(12.0), // <<< เพิ่ม Padding รอบ ListView
           itemCount: docs.length,
-          separatorBuilder: (_, __) => const Divider(
-            height: 0,
-            indent: 16,
-            endIndent: 16,
-          ), // Add divider
           itemBuilder: (context, index) {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
 
-            // Extract data
-            final code =
-                data['code'] as String? ??
-                doc.id.substring(0, 6); // Use short ID if no code
+            final code = data['code'] as String? ?? doc.id.substring(0, 6);
             final to = data['receiverAddress']?['address'] as String? ?? '-';
             final status = data['status'] as String? ?? 'unknown';
             final Timestamp? timestamp =
-                data['deliveredAt']
-                    as Timestamp? // Prefer deliveredAt
-                    ??
-                data['canceledAt']
-                    as Timestamp? // Fallback to canceledAt
-                    ??
-                data['updatedAt'] as Timestamp?; // Final fallback
+                data['deliveredAt'] as Timestamp? ??
+                data['canceledAt'] as Timestamp? ??
+                data['updatedAt'] as Timestamp?;
             final DateTime? completedDate = timestamp?.toDate();
 
             String formatTimestamp(DateTime? dt) {
@@ -1191,27 +1124,88 @@ class RiderHistoryPage extends StatelessWidget {
               return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
             }
 
-            return ListTile(
-              leading: Icon(
-                status == 'delivered'
-                    ? Icons.check_circle_outline
-                    : Icons.cancel_outlined, // Icon based on status
-                color: status == 'delivered' ? Colors.green : Colors.red,
+            // --- ✨ สร้าง Card layout ใหม่ ---
+            return Card(
+              color: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              title: Text('ID: $code'),
-              subtitle: Text(
-                'ส่งที่: $to\nเมื่อ: ${formatTimestamp(completedDate)}',
-              ),
-              trailing: _StatusChipSmall(status: status), // Show status chip
-              isThreeLine: true,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ParcelDetailPage(deliveryId: doc.id, data: data),
+              margin: const EdgeInsets.only(
+                bottom: 8,
+              ), // <<< ระยะห่างระหว่าง Card
+              child: InkWell(
+                // <<< เพิ่ม InkWell เพื่อให้กดได้
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ParcelDetailPage(deliveryId: doc.id, data: data),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // --- แถวบนสุด (Icon, ID, Status) ---
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                status == 'delivered'
+                                    ? Icons.check_circle_outline
+                                    : Icons.cancel_outlined,
+                                color: status == 'delivered'
+                                    ? primaryColor
+                                    : Colors.red,
+                                size: 20, // <<< ขนาดไอคอน
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'ID: $code',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                          _StatusChipSmall(status: status), // Chip สถานะ
+                        ],
+                      ),
+                      const SizedBox(height: 12), // <<< ระยะห่าง
+                      // --- ที่อยู่ ---
+                      Text(
+                        'ส่งที่: $to',
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 13,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4), // <<< ระยะห่าง
+                      // --- เวลา ---
+                      Text(
+                        'เมื่อ: ${formatTimestamp(completedDate)}',
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
+            // --- จบ Card layout ใหม่ ---
           },
         );
       },
@@ -1220,7 +1214,7 @@ class RiderHistoryPage extends StatelessWidget {
 } // End RiderHistoryPage
 
 // -----------------------------
-// Parcel Detail Page (ควรสร้างไฟล์แยก lib/pages/parcel_detail_page.dart ถ้ายังไม่ได้ทำ)
+// Parcel Detail Page (ปรับสี Icon ใน _row)
 // -----------------------------
 class ParcelDetailPage extends StatelessWidget {
   final String deliveryId;
@@ -1231,7 +1225,6 @@ class ParcelDetailPage extends StatelessWidget {
     required this.data,
   });
 
-  // Helper widget for displaying rows
   Widget _row(
     BuildContext context,
     IconData icon,
@@ -1242,7 +1235,7 @@ class ParcelDetailPage extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: Theme.of(context).primaryColor, size: 20),
+        Icon(icon, color: primaryColor, size: 20), // <<< ใช้ primaryColor
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -1267,7 +1260,6 @@ class ParcelDetailPage extends StatelessWidget {
     ),
   );
 
-  // Helper to format Timestamp
   String _formatTimestamp(dynamic ts) {
     if (ts is Timestamp) {
       final dt = ts.toDate().toLocal();
@@ -1278,13 +1270,15 @@ class ParcelDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Extract address maps safely
     final senderAddr = data['senderAddress'] as Map<String, dynamic>? ?? {};
     final receiverAddr = data['receiverAddress'] as Map<String, dynamic>? ?? {};
-    final items = data['items'] as List<dynamic>? ?? []; // Get items list
+    final items = data['items'] as List<dynamic>? ?? [];
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text(
           'รายละเอียด #${data['code'] ?? deliveryId.substring(0, 6)}',
         ),
@@ -1295,11 +1289,18 @@ class ParcelDetailPage extends StatelessWidget {
           ),
         ],
       ),
+      backgroundColor: backgroundColor,
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
           // Section: Sender Info
           Card(
+            color: Colors.white,
+            surfaceTintColor: Colors.white,
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.only(bottom: 16),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -1335,6 +1336,12 @@ class ParcelDetailPage extends StatelessWidget {
           ),
           // Section: Receiver Info
           Card(
+            color: Colors.white,
+            surfaceTintColor: Colors.white,
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.only(bottom: 16),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -1370,6 +1377,12 @@ class ParcelDetailPage extends StatelessWidget {
           ),
           // Section: Item Details
           Card(
+            color: Colors.white,
+            surfaceTintColor: Colors.white,
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.only(bottom: 16),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -1398,14 +1411,49 @@ class ParcelDetailPage extends StatelessWidget {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: Image.network(
-                                    imageUrl,
+                                    imageUrl, // <<< ใส่ตัวแปร imageUrl
                                     height: 150,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.broken_image,
-                                      color: Colors.grey,
-                                    ),
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Center(
+                                            child: CircularProgressIndicator(
+                                              value:
+                                                  loadingProgress
+                                                          .expectedTotalBytes !=
+                                                      null
+                                                  ? loadingProgress
+                                                            .cumulativeBytesLoaded /
+                                                        loadingProgress
+                                                            .expectedTotalBytes!
+                                                  : null,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    primaryColor,
+                                                  ), // <<< ปรับสี Loading
+                                            ),
+                                          );
+                                        },
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              height: 150,
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey.shade200,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Center(
+                                                child: Icon(
+                                                  Icons.broken_image,
+                                                  color: Colors.grey.shade400,
+                                                  size: 40,
+                                                ),
+                                              ),
+                                            ),
                                   ),
                                 ),
                               ),
@@ -1421,7 +1469,12 @@ class ParcelDetailPage extends StatelessWidget {
                             if (itemData['note'] != null &&
                                 itemData['note'].toString().isNotEmpty)
                               Text('หมายเหตุ: ${itemData['note']}'),
-                            const Divider(height: 16),
+                            if (items.indexOf(item) <
+                                items.length -
+                                    1) // <<< เพิ่มเงื่อนไขเช็คว่าไม่ใช่ item สุดท้าย
+                              const Divider(
+                                height: 16,
+                              ), // <<< ย้าย Divider มาไว้ตรงนี้
                           ],
                         ),
                       );
@@ -1432,6 +1485,12 @@ class ParcelDetailPage extends StatelessWidget {
           ),
           // Section: Timestamps
           Card(
+            color: Colors.white,
+            surfaceTintColor: Colors.white,
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             margin: const EdgeInsets.only(bottom: 16),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -1481,7 +1540,7 @@ class ParcelDetailPage extends StatelessWidget {
               ),
             ),
           ),
-          // Optional: Display proof images if available
+          // Proof Images (Optional styling)
           if (data['pickupProofImageUrl'] != null) ...[
             const Text(
               'หลักฐานการรับของ',
@@ -1489,7 +1548,41 @@ class ParcelDetailPage extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Image.network(data['pickupProofImageUrl']),
+              child: ClipRRect(
+                // <<< เพิ่ม ClipRRect
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  data['pickupProofImageUrl'],
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: 200, // <<< จำกัดความสูง
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 200,
+                      color: Colors.grey.shade200,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            primaryColor,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 200,
+                    color: Colors.grey.shade200,
+                    child: Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey.shade400,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
           if (data['deliveryProofImageUrl'] != null) ...[
@@ -1499,7 +1592,41 @@ class ParcelDetailPage extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Image.network(data['deliveryProofImageUrl']),
+              child: ClipRRect(
+                // <<< เพิ่ม ClipRRect
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  data['deliveryProofImageUrl'],
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: 200, // <<< จำกัดความสูง
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 200,
+                      color: Colors.grey.shade200,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            primaryColor,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 200,
+                    color: Colors.grey.shade200,
+                    child: Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey.shade400,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ],
@@ -1518,12 +1645,11 @@ class _StatusChipSmall extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String label() {
-      /* Same as _StatusChip */
       switch (status) {
         case 'created':
-          return 'สร้างแล้ว';
+          return 'รอไรเดอร์รับงาน'; // <<< เปลี่ยนข้อความ
         case 'assigned':
-          return 'มอบหมายแล้ว';
+          return 'ไรเดอร์รับงานแล้ว'; // <<< เปลี่ยนข้อความ
         case 'picked':
           return 'รับของแล้ว';
         case 'delivered':
@@ -1540,14 +1666,18 @@ class _StatusChipSmall extends StatelessWidget {
         label(),
         style: TextStyle(
           fontSize: 11,
-          color: statusColor(status),
+          color: statusColor(
+            status,
+          ), // <<< ใช้สีจาก utility function ที่แก้ไขแล้ว
           fontWeight: FontWeight.w600,
         ),
       ),
-      backgroundColor: statusBackgroundColor(status),
+      backgroundColor: statusBackgroundColor(
+        status,
+      ), // <<< ใช้สีพื้นหลังจาก utility function ที่แก้ไขแล้ว
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
       visualDensity: VisualDensity.compact,
-      side: BorderSide.none, // Remove border
+      side: BorderSide.none,
     );
   }
 }

@@ -12,6 +12,12 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 
+// --- ✨ สี Theme ที่จะใช้ (สีม่วง) ---
+const Color primaryColor = Color(0xFF8C78E8);
+const Color backgroundColor = Color(0xFFE5E0FA);
+const Color secondaryTextColor = Color(0xFFE9D5FF);
+// --- จบสี Theme ---
+
 class RiderMapPage extends StatefulWidget {
   final Map<String, dynamic> deliveryData;
   final String deliveryId;
@@ -451,9 +457,14 @@ class _RiderMapPageState extends State<RiderMapPage> {
           width: 40.0, // ปรับขนาดตามต้องการ
           height: 40.0,
           point: _currentRiderPosition!,
-          child: const Tooltip(
+          child: Tooltip(
             message: 'ตำแหน่งของคุณ',
-            child: Icon(Icons.motorcycle, color: Colors.purple, size: 30),
+            // --- ✨ ปรับสี Icon Rider ---
+            child: Icon(
+              Icons.motorcycle,
+              color: primaryColor,
+              size: 30,
+            ), // <<< สีม่วง
           ),
         ),
     ];
@@ -468,7 +479,15 @@ class _RiderMapPageState extends State<RiderMapPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('แผนที่การจัดส่ง')),
+      // --- ✨ ปรับสี AppBar ---
+      appBar: AppBar(
+        title: const Text('แผนที่การจัดส่ง'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      // --- ✨ ปรับสีพื้นหลัง Scaffold ---
+      backgroundColor: backgroundColor,
       body: Stack(
         children: [
           FlutterMap(
@@ -494,7 +513,14 @@ class _RiderMapPageState extends State<RiderMapPage> {
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 children: [
+                  // --- ✨ ปรับ Card ที่อยู่ ---
                   Card(
+                    color: Colors.white,
+                    surfaceTintColor: Colors.white,
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: ListTile(
                       leading: const Icon(Icons.store, color: Colors.blue),
                       title: const Text('จุดรับของ'),
@@ -515,6 +541,12 @@ class _RiderMapPageState extends State<RiderMapPage> {
                     ),
                   ),
                   Card(
+                    color: Colors.white,
+                    surfaceTintColor: Colors.white,
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: ListTile(
                       leading: const Icon(
                         Icons.person_pin_circle,
@@ -547,6 +579,8 @@ class _RiderMapPageState extends State<RiderMapPage> {
             right: 0,
             child: Material(
               elevation: 8,
+              // --- ✨ ปรับสี Bottom Sheet ---
+              color: Colors.white, // <<< สีขาว
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -554,13 +588,17 @@ class _RiderMapPageState extends State<RiderMapPage> {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: _isSubmitting
-                    ? const Center(
+                    ? Center(
                         child: Padding(
                           padding: EdgeInsets.all(16.0),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              CircularProgressIndicator(),
+                              CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  primaryColor,
+                                ),
+                              ), // <<< ปรับสี
                               SizedBox(height: 8),
                               Text("กำลังดำเนินการ..."),
                             ],
@@ -580,14 +618,18 @@ class _RiderMapPageState extends State<RiderMapPage> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor:
                                       canPickup // ✨ ใช้เงื่อนไขสี
-                                      ? Colors.orange
+                                      // --- ✨ ปรับสีปุ่ม ---
+                                      ? primaryColor // <<< สีม่วง
                                       : Colors.grey, // สีเทาถ้ากดไม่ได้
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
                                   ),
+                                  // --- ✨ ปรับ Shape ปุ่ม ---
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
                                 ),
-                                // ✨ ใช้เงื่อนไข enable/disable
                                 onPressed: canPickup
                                     ? () => _pickImageAndUpdateStatus('picked')
                                     : null, // null = disabled
@@ -604,14 +646,18 @@ class _RiderMapPageState extends State<RiderMapPage> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor:
                                       canDeliver // ✨ ใช้เงื่อนไขสี
-                                      ? Colors.green
+                                      // --- ✨ ปรับสีปุ่ม ---
+                                      ? primaryColor // <<< สีม่วง
                                       : Colors.grey, // สีเทาถ้ากดไม่ได้
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
                                   ),
+                                  // --- ✨ ปรับ Shape ปุ่ม ---
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
                                 ),
-                                // ✨ ใช้เงื่อนไข enable/disable
                                 onPressed: canDeliver
                                     ? () =>
                                           _pickImageAndUpdateStatus('delivered')
@@ -658,6 +704,13 @@ class _RiderMapPageState extends State<RiderMapPage> {
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.red,
                                 side: const BorderSide(color: Colors.red),
+                                // --- ✨ ปรับ Shape ปุ่ม ---
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ), // <<< ปรับ Padding ให้ใกล้เคียง
                               ),
                               onPressed: () async {
                                 final confirm = await showDialog<bool>(
@@ -665,7 +718,7 @@ class _RiderMapPageState extends State<RiderMapPage> {
                                   builder: (context) => AlertDialog(
                                     title: const Text('ยืนยันการยกเลิก'),
                                     content: const Text(
-                                      'คุณต้องการยกเลิกออเดอร์นี้ และคืนงานสู่รายการใหม่ใช่หรือไม่?', // Update confirmation text
+                                      'คุณต้องการยกเลิกออเดอร์นี้ และคืนงานสู่รายการใหม่ใช่หรือไม่?',
                                     ),
                                     actions: [
                                       TextButton(
@@ -681,7 +734,6 @@ class _RiderMapPageState extends State<RiderMapPage> {
                                     ],
                                   ),
                                 );
-                                // ✨ ส่ง riderIdToClear เพื่อให้งานกลับไปรายการใหม่
                                 if (confirm == true) {
                                   await _updateStatus(
                                     'created',

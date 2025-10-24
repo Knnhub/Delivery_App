@@ -293,7 +293,8 @@ class _RegisterPageState extends State<RegisterPage> {
       'address': addressCtl.text.trim(),
       'lat': _selectedLatLng?.latitude,
       'lng': _selectedLatLng?.longitude,
-      'createdAt': DateTime.timestamp(),
+      'createdAt':
+          DateTime.timestamp(), // Use server timestamp if possible: FieldValue.serverTimestamp()
     };
     setState(() {
       _addresses.add(item);
@@ -311,10 +312,33 @@ class _RegisterPageState extends State<RegisterPage> {
       ).showSnackBar(const SnackBar(content: Text('กรอกข้อมูลให้ครบถ้วน')));
       return;
     }
+    // Add validation for Rider specific fields
+    if (role == 'rider' && vehicleLicensePlateCtl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('กรุณากรอกทะเบียนรถ')));
+      return;
+    }
+    // Optional: Add validation for images
+    // if (_pickedImage == null) { ... }
+    // if (role == 'rider' && _vehicleImage == null) { ... }
 
     setState(() => _submitting = true);
     try {
       final phone = phoneCtl.text.trim();
+
+      // Check if phone number already exists
+      final userExists = await db.collection('user').doc(phone).get();
+      final riderExists = await db.collection('rider').doc(phone).get();
+
+      if (userExists.exists || riderExists.exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว')),
+        );
+        setState(() => _submitting = false);
+        return;
+      }
 
       // อัปโหลดรูปโปรไฟล์ (ถ้ามี)
       _profilePicUrl = await _uploadProfileImage(phone: phone);
@@ -325,19 +349,19 @@ class _RegisterPageState extends State<RegisterPage> {
       }
 
       final data = <String, dynamic>{
-        'phone': phone,
+        'phone': phone, // Consider removing this if doc ID is the phone
         'passwordHash': hashPassword(passwordCtl.text),
         'name': nameCtl.text.trim(),
         'role': role,
-        'profilePicUrl': _profilePicUrl,
-        'createdAt': DateTime.timestamp(),
+        'profilePicUrl': _profilePicUrl, // Corrected field name
+        'createdAt': FieldValue.serverTimestamp(), // Use server timestamp
       };
 
       if (role == 'user') {
         data['addresses'] = _addresses;
       } else if (role == 'rider') {
         data['vehicleLicensePlate'] = vehicleLicensePlateCtl.text.trim();
-        data['vehiclePicUrl'] = _vehiclePicUrl;
+        data['vehiclePicUrl'] = _vehiclePicUrl; // Corrected field name
       }
 
       await db.collection(role).doc(phone).set(data);
@@ -347,11 +371,15 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('สมัครสมาชิกสำเร็จ')));
+
+      // Optional: Navigate back to login or home page after successful registration
+      Navigator.pushReplacementNamed(context, '/login');
     } catch (e) {
+      log('Error during registration: $e'); // Log the specific error
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+      ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาดในการสมัคร: $e')));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -361,313 +389,297 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFE5E0FA),
+      // --- AppBar ที่เพิ่มเข้ามา ---
+      appBar: AppBar(
+        title: const Text('สมัครสมาชิก'),
+        backgroundColor: const Color(0xFF8C78E8),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        // เพิ่มปุ่ม Back ถ้าต้องการ
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+      ),
+      // --- จบ AppBar ---
       body: SafeArea(
-        child: Stack(
-          children: [
-            Align(
-              alignment: Alignment.topCenter,
-              child: Container(
-                height: 120,
-                width: double.infinity,
-                color: const Color(0xFF8C78E8),
-              ),
-            ),
-
-            LayoutBuilder(
-              builder: (context, c) {
-                final isTall = c.maxHeight > 820;
-                return Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'สมัครสมาชิก',
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // ===== Avatar + ปุ่มกล้อง =====
-                          Center(
-                            child: Stack(
-                              children: [
-                                CircleAvatar(
-                                  radius: 60,
-                                  backgroundColor: Colors.white,
-                                  backgroundImage: _pickedImage != null
-                                      ? FileImage(File(_pickedImage!.path))
-                                      : null,
-                                  child: _pickedImage == null
-                                      ? const Icon(
-                                          Icons.person,
-                                          size: 60,
-                                          color: Colors.black54,
-                                        )
-                                      : null,
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Material(
-                                    color: const Color(0xFF8C78E8),
-                                    shape: const CircleBorder(),
-                                    child: IconButton(
-                                      icon: const Icon(
-                                        Icons.camera_alt,
-                                        color: Color(0xFFE9D5FF),
-                                      ),
-                                      onPressed: _pickImage,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          SizedBox(height: isTall ? 32 : 20),
-
-                          _RoundedField(
-                            controller: phoneCtl,
-                            hintText: 'เบอร์โทรศัพท์',
-                            keyboardType: TextInputType.phone,
-                          ),
-                          const SizedBox(height: 12),
-
-                          _RoundedField(
-                            controller: passwordCtl,
-                            hintText: 'รหัสผ่าน',
-                            obscureText: _obscure,
-                            suffix: IconButton(
-                              icon: Icon(
-                                _obscure
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _obscure = !_obscure),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          _RoundedField(
-                            controller: nameCtl,
-                            hintText: 'ชื่อ-นามสกุล',
-                            textInputAction: TextInputAction.next,
-                          ),
-                          const SizedBox(height: 12),
-
-                          const SizedBox(height: 12),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _SegmentButton(
-                                  label: 'ผู้ใช้',
-                                  selected: role == 'user',
-                                  onTap: () => setState(() => role = 'user'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _SegmentButton(
-                                  label: 'ไรเดอร์',
-                                  selected: role == 'rider',
-                                  onTap: () => setState(() => role = 'rider'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          if (role == 'rider') ...[
-                            const SizedBox(height: 12),
-                            const Text(
-                              'ข้อมูลยานพาหนะ',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Center(
-                              child: GestureDetector(
-                                onTap: _pickVehicleImage,
-                                child: Container(
-                                  height: 150,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    image: _vehicleImage != null
-                                        ? DecorationImage(
-                                            image: FileImage(
-                                              File(_vehicleImage!.path),
-                                            ),
-                                            fit: BoxFit.cover,
-                                          )
-                                        : null,
-                                  ),
-                                  child: _vehicleImage == null
-                                      ? const Center(
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.directions_car,
-                                                size: 40,
-                                                color: Colors.black54,
-                                              ),
-                                              Text('ถ่ายรูปรถ'),
-                                            ],
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _RoundedField(
-                              controller: vehicleLicensePlateCtl,
-                              hintText: 'เลขป้ายทะเบียนรถ',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-
-                          if (role == 'user')
-                            _RoundedField(
-                              controller: addressCtl,
-                              hintText: _reverseGeocoding
-                                  ? 'กำลังค้นหาชื่อสถานที่…'
-                                  : 'ที่อยู่ (พิมพ์แล้วกด ค้นหาตำแหน่ง หรือแตะบนแผนที่)',
-                              maxLines: 2,
-                            ),
-
-                          if (role == 'user')
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: _geocodeAddress,
-                                  icon: const Icon(Icons.search),
-                                  label: const Text('ค้นหาตำแหน่ง'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF8C78E8),
-                                    foregroundColor: const Color(0xFFE9D5FF),
-                                  ),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: _addCurrentAddress,
-                                  icon: const Icon(
-                                    Icons.add_location_alt_outlined,
-                                  ),
-                                  label: const Text('เพิ่มที่อยู่นี้'),
-                                ),
-                                Text('ทั้งหมด ${_addresses.length} ที่อยู่'),
-                              ],
-                            ),
-
-                          SizedBox(height: isTall ? 16 : 12),
-
-                          if (role == 'user')
-                            SizedBox(
-                              height: 280,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: FlutterMap(
-                                  mapController: _mapController,
-                                  options: MapOptions(
-                                    initialCenter: _center,
-                                    initialZoom: 12,
-                                    onTap: (tapPosition, latlng) =>
-                                        _reverseGeocode(latlng),
-                                  ),
-                                  children: [
-                                    TileLayer(
-                                      urlTemplate:
-                                          'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=66bb35dc3aad4f21b4b0de85b001cb0a',
-                                      userAgentPackageName: 'com.example.app',
-                                      maxZoom: 19,
-                                    ),
-                                    if (_selectedLatLng != null)
-                                      MarkerLayer(
-                                        markers: [
-                                          Marker(
-                                            point: _selectedLatLng!,
-                                            width: 40,
-                                            height: 40,
-                                            child: const Icon(
-                                              Icons.place,
-                                              size: 36,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                          SizedBox(height: isTall ? 20 : 12),
-
-                          SizedBox(
-                            height: 57,
-                            child: ElevatedButton(
-                              onPressed: _submitting ? null : register,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF8C78E8),
-                                foregroundColor: const Color(0xFFE9D5FF),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(50),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: _submitting
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
+        child: LayoutBuilder(
+          // ย้าย LayoutBuilder มาไว้ตรงนี้
+          builder: (context, c) {
+            final isTall = c.maxHeight > 820;
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // ===== Avatar + ปุ่มกล้อง =====
+                      Center(
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 60,
+                              backgroundColor: Colors.white,
+                              backgroundImage: _pickedImage != null
+                                  ? FileImage(File(_pickedImage!.path))
+                                  : null,
+                              child: _pickedImage == null
+                                  ? const Icon(
+                                      Icons.person,
+                                      size: 60,
+                                      color: Colors.black54,
                                     )
-                                  : const Text(
-                                      'ยืนยัน',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                                  : null,
+                            ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Material(
+                                color: const Color(0xFF8C78E8),
+                                shape: const CircleBorder(),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.camera_alt,
+                                    color: Color(0xFFE9D5FF),
+                                  ),
+                                  onPressed: _pickImage,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: isTall ? 32 : 20),
+
+                      _RoundedField(
+                        controller: phoneCtl,
+                        hintText: 'เบอร์โทรศัพท์',
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 12),
+
+                      _RoundedField(
+                        controller: passwordCtl,
+                        hintText: 'รหัสผ่าน',
+                        obscureText: _obscure,
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscure ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      _RoundedField(
+                        controller: nameCtl,
+                        hintText: 'ชื่อ-นามสกุล',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 12),
+
+                      const SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SegmentButton(
+                              label: 'ผู้ใช้',
+                              selected: role == 'user',
+                              onTap: () => setState(() => role = 'user'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _SegmentButton(
+                              label: 'ไรเดอร์',
+                              selected: role == 'rider',
+                              onTap: () => setState(() => role = 'rider'),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                );
-              },
-            ),
+                      const SizedBox(height: 12),
 
-            const Positioned(left: 8, top: 8, child: _BackBtn()),
-          ],
+                      if (role == 'rider') ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'ข้อมูลยานพาหนะ',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: GestureDetector(
+                            onTap: _pickVehicleImage,
+                            child: Container(
+                              height: 150,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade300),
+                                image: _vehicleImage != null
+                                    ? DecorationImage(
+                                        image: FileImage(
+                                          File(_vehicleImage!.path),
+                                        ),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
+                              child: _vehicleImage == null
+                                  ? const Center(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.directions_car,
+                                            size: 40,
+                                            color: Colors.black54,
+                                          ),
+                                          Text('ถ่ายรูปรถ'),
+                                        ],
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _RoundedField(
+                          controller: vehicleLicensePlateCtl,
+                          hintText: 'เลขป้ายทะเบียนรถ',
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      if (role == 'user')
+                        _RoundedField(
+                          controller: addressCtl,
+                          hintText: _reverseGeocoding
+                              ? 'กำลังค้นหาชื่อสถานที่…'
+                              : 'ที่อยู่ (พิมพ์แล้วกด ค้นหาตำแหน่ง หรือแตะบนแผนที่)',
+                          maxLines: 2,
+                        ),
+
+                      if (role == 'user')
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _geocodeAddress,
+                              icon: const Icon(Icons.search),
+                              label: const Text('ค้นหาตำแหน่ง'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF8C78E8),
+                                foregroundColor: const Color(0xFFE9D5FF),
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: _addCurrentAddress,
+                              icon: const Icon(Icons.add_location_alt_outlined),
+                              label: const Text('เพิ่มที่อยู่นี้'),
+                            ),
+                            Text('ทั้งหมด ${_addresses.length} ที่อยู่'),
+                          ],
+                        ),
+
+                      SizedBox(height: isTall ? 16 : 12),
+
+                      if (role == 'user')
+                        SizedBox(
+                          height: 280,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: FlutterMap(
+                              mapController: _mapController,
+                              options: MapOptions(
+                                initialCenter: _center,
+                                initialZoom: 12,
+                                onTap: (tapPosition, latlng) =>
+                                    _reverseGeocode(latlng),
+                              ),
+                              children: [
+                                TileLayer(
+                                  urlTemplate:
+                                      'https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=66bb35dc3aad4f21b4b0de85b001cb0a', // Consider getting your own API key
+                                  userAgentPackageName:
+                                      'com.example.deliver_app', // Use your actual package name
+                                  maxZoom: 19,
+                                ),
+                                if (_selectedLatLng != null)
+                                  MarkerLayer(
+                                    markers: [
+                                      Marker(
+                                        point: _selectedLatLng!,
+                                        width: 40,
+                                        height: 40,
+                                        child: const Icon(
+                                          Icons.place,
+                                          size: 36,
+                                          color: Colors.red, // ทำให้หมุดชัดขึ้น
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      SizedBox(height: isTall ? 20 : 12),
+
+                      SizedBox(
+                        height: 57,
+                        child: ElevatedButton(
+                          onPressed: _submitting ? null : register,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF8C78E8),
+                            foregroundColor: const Color(0xFFE9D5FF),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _submitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFFE9D5FF),
+                                    ), // สี loading
+                                  ),
+                                )
+                              : const Text(
+                                  'ยืนยัน',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -756,22 +768,6 @@ class _SegmentButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _BackBtn extends StatelessWidget {
-  const _BackBtn();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-        onPressed: () => Navigator.maybePop(context),
-        tooltip: 'ย้อนกลับ',
       ),
     );
   }
